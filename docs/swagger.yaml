@@ -1,0 +1,120 @@
+basePath: /
+definitions:
+  dto.CreateGreetingRequest:
+    properties:
+      name:
+        example: World
+        type: string
+    type: object
+  dto.ErrorResponse:
+    properties:
+      error:
+        example: greeting not found
+        type: string
+    type: object
+  dto.GreetingResponse:
+    properties:
+      created_at:
+        example: "2026-06-04T12:00:00Z"
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      message:
+        example: Hello, World!
+        type: string
+      name:
+        example: World
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: A proof-of-concept REST API built with Go, Chi, and hexagonal architecture.
+  title: API POC
+  version: "1.0"
+paths:
+  /api/v1/greetings:
+    get:
+      description: Retrieve all greetings
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.GreetingResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: List all greetings
+      tags:
+      - Greetings
+    post:
+      consumes:
+      - application/json
+      description: Create a new greeting with the given name
+      parameters:
+      - description: Greeting request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateGreetingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.GreetingResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Create a greeting
+      tags:
+      - Greetings
+  /api/v1/greetings/{id}:
+    get:
+      description: Retrieve a greeting by its unique identifier
+      parameters:
+      - description: Greeting ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.GreetingResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Get a greeting by ID
+      tags:
+      - Greetings
+swagger: "2.0"
