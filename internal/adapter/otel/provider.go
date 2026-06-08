@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"log/slog"
+
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -35,7 +38,7 @@ type Shutdown func(ctx context.Context) error
 // Setup initialises the OpenTelemetry TracerProvider, MeterProvider and
 // LoggerProvider. The exporter is selected by Config.ExporterType:
 //   - "stdout" (default): pretty-printed JSON to stdout, suitable for local dev.
-//   - "otlp": gRPC OTLP exporter targeting Config.OTLPEndpoint (e.g. Aspire Dashboard).
+//   - "otlp": gRPC OTLP exporter targeting Config.OTLPEndpoint.
 //
 // It returns a combined shutdown function that the caller must invoke on
 // application exit to flush pending telemetry.
@@ -94,6 +97,9 @@ func Setup(ctx context.Context, cfg Config) (Shutdown, error) {
 	)
 	global.SetLoggerProvider(lp)
 	shutdowns = append(shutdowns, lp.Shutdown)
+
+	// Bridge slog to OTel LoggerProvider so log records carry trace context
+	slog.SetDefault(otelslog.NewLogger(cfg.ServiceName))
 
 	return combinedShutdown(shutdowns), nil
 }

@@ -11,8 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"go.opentelemetry.io/contrib/bridges/otelslog"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	_ "github.com/craneww/api-poc/docs"
 	httpserver "github.com/craneww/api-poc/internal/adapter/http"
@@ -29,6 +27,8 @@ import (
 // @host      localhost:8080
 // @BasePath  /
 
+const serviceName = "api-poc"
+
 func main() {
 	cfg := config.Load()
 	ctx := context.Background()
@@ -44,7 +44,7 @@ func main() {
 
 	// --- OpenTelemetry ---
 	otelShutdown, err := appOtel.Setup(ctx, appOtel.Config{
-		ServiceName:    "api-poc",
+		ServiceName:    serviceName,
 		ServiceVersion: "1.0.0",
 		ExporterType:   cfg.OtelExporter,
 		OTLPEndpoint:   cfg.OtelExporterEndpoint,
@@ -53,10 +53,6 @@ func main() {
 		slog.Error("failed to initialise OpenTelemetry", "error", err)
 		os.Exit(1)
 	}
-
-	// Bridge slog to OTel LoggerProvider so log records carry trace context
-	logger := otelslog.NewLogger("api-poc")
-	slog.SetDefault(logger)
 
 	// Wire driven adapters
 	greetingRepo := inmemory.NewGreetingRepository()
@@ -67,7 +63,7 @@ func main() {
 	listGreetings := usecase.NewListGreetingsUseCase(greetingRepo)
 
 	// Wire driving adapter (HTTP server) — inject use case interfaces
-	router := httpserver.NewServer(idTokenVerifier, createGreeting, getGreeting, listGreetings)
+	router := httpserver.NewServer(serviceName, idTokenVerifier, createGreeting, getGreeting, listGreetings)
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,

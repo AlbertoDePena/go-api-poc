@@ -13,6 +13,7 @@ import (
 )
 
 func NewServer(
+	serviceName string,
 	tokenVerifier *oidc.IDTokenVerifier,
 	createGreeting usecase.CreateGreetingUseCase,
 	getGreeting usecase.GetGreetingUseCase,
@@ -22,7 +23,7 @@ func NewServer(
 
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
-	r.Use(otelhttp.NewMiddleware("api-poc"))
+	r.Use(otelhttp.NewMiddleware(serviceName))
 
 	healthHandler := handler.NewHealthHandler()
 	greetingHandler := handler.NewGreetingHandler(createGreeting, getGreeting, listGreetings)
