@@ -24,7 +24,11 @@ func NewServer(
 	r.Use(middleware.RequestID)
 	r.Use(otelhttp.NewMiddleware("api-poc"))
 
+	healthHandler := handler.NewHealthHandler()
 	greetingHandler := handler.NewGreetingHandler(createGreeting, getGreeting, listGreetings)
+
+	r.Get("/health/live", healthHandler.Liveness)
+	r.Get("/health/ready", healthHandler.Readiness)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(customMiddleware.RequireAuth(tokenVerifier))

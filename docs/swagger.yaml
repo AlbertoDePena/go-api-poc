@@ -117,4 +117,34 @@ paths:
       summary: Get a greeting by ID
       tags:
       - Greetings
+  /health/live:
+    get:
+      description: Returns 200 if the service process is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness probe
+      tags:
+      - Health
+  /health/ready:
+    get:
+      description: Returns 200 if the service is ready to accept traffic
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Readiness probe
+      tags:
+      - Health
 swagger: "2.0"
