@@ -15,6 +15,7 @@ import (
 func NewServer(
 	serviceName string,
 	tokenVerifier *oidc.IDTokenVerifier,
+	pinger handler.Pinger,
 	createGreeting usecase.CreateGreetingUseCase,
 	getGreeting usecase.GetGreetingUseCase,
 	listGreetings usecase.ListGreetingsUseCase,
@@ -25,7 +26,7 @@ func NewServer(
 	r.Use(middleware.RequestID)
 	r.Use(otelhttp.NewMiddleware(serviceName))
 
-	healthHandler := handler.NewHealthHandler()
+	healthHandler := handler.NewHealthHandler(pinger)
 	greetingHandler := handler.NewGreetingHandler(createGreeting, getGreeting, listGreetings)
 
 	r.Get("/health/live", healthHandler.Liveness)

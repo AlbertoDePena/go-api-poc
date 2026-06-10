@@ -12,6 +12,7 @@ type Config struct {
 	AzureClientID        string
 	OtelExporter         string
 	OtelExporterEndpoint string
+	DatabasePath         string
 }
 
 func Load() Config {
@@ -22,6 +23,7 @@ func Load() Config {
 	clientID := os.Getenv("AZURE_CLIENT_ID")
 	otelExporter := os.Getenv("OTEL_EXPORTER")
 	otelEndpoint := os.Getenv("OTEL_EXPORTER_ENDPOINT")
+	databasePath := os.Getenv("DATABASE_PATH")
 	if addr == "" {
 		addr = ":8080"
 	}
@@ -37,11 +39,15 @@ func Load() Config {
 	if otelEndpoint == "" {
 		otelEndpoint = "localhost:18889"
 	}
+	if databasePath == "" {
+		databasePath = "api-poc.db"
+	}
 	return Config{
 		Addr:                 addr,
 		AzureTenantID:        tenantID,
 		AzureClientID:        clientID,
 		OtelExporter:         otelExporter,
 		OtelExporterEndpoint: otelEndpoint,
+		DatabasePath:         databasePath,
 	}
 }

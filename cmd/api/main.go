@@ -14,8 +14,8 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	_ "github.com/craneww/api-poc/docs"
 	httpserver "github.com/craneww/api-poc/internal/adapter/http"
-	"github.com/craneww/api-poc/internal/adapter/inmemory"
 	appOtel "github.com/craneww/api-poc/internal/adapter/otel"
+	sqlite "github.com/craneww/api-poc/internal/adapter/sqlite"
 	"github.com/craneww/api-poc/internal/config"
 	"github.com/craneww/api-poc/internal/core/usecase"
 )
@@ -55,7 +55,12 @@ func main() {
 	}
 
 	// Wire driven adapters
-	greetingRepo := inmemory.NewGreetingRepository()
+	sqliteDB, err := sqlite.Open(cfg.DatabasePath)
+	if err != nil {
+		slog.Error("failed to open database", "error", err)
+		os.Exit(1)
+	}
+	greetingRepo := sqlite.NewGreetingRepository(sqliteDB)
 
 	// Wire use cases — inject driven ports
 	createGreeting := usecase.NewCreateGreetingUseCase(greetingRepo)
@@ -63,7 +68,7 @@ func main() {
 	listGreetings := usecase.NewListGreetingsUseCase(greetingRepo)
 
 	// Wire driving adapter (HTTP server) — inject use case interfaces
-	router := httpserver.NewServer(serviceName, idTokenVerifier, createGreeting, getGreeting, listGreetings)
+	router := httpserver.NewServer(serviceName, idTokenVerifier, sqliteDB, createGreeting, getGreeting, listGreetings)
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,
@@ -93,6 +98,10 @@ func main() {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("forced shutdown", "error", err)
+	}
+
+	if err := sqliteDB.Close(); err != nil {
+		slog.Error("database close", "error", err)
 	}
 
 	if err := otelShutdown(shutdownCtx); err != nil {
