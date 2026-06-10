@@ -33,7 +33,7 @@ func (r *GreetingRepository) Save(ctx context.Context, greeting *domain.Greeting
 			name    = excluded.name,
 			message = excluded.message`
 
-	_, err := r.writeDB.ExecContext(ctx, query,
+	_, err := writerFrom(ctx, r.writeDB).ExecContext(ctx, query,
 		greeting.ID,
 		greeting.Name,
 		greeting.Message,

@@ -15,6 +15,7 @@ import (
 	_ "github.com/craneww/api-poc/docs"
 	httpserver "github.com/craneww/api-poc/internal/adapter/http"
 	appOtel "github.com/craneww/api-poc/internal/adapter/otel"
+	"github.com/craneww/api-poc/internal/adapter/outbox"
 	sqlite "github.com/craneww/api-poc/internal/adapter/sqlite"
 	"github.com/craneww/api-poc/internal/config"
 	"github.com/craneww/api-poc/internal/core/usecase"
@@ -61,9 +62,11 @@ func main() {
 		os.Exit(1)
 	}
 	greetingRepo := sqlite.NewGreetingRepository(sqliteDB)
+	outboxRepo := sqlite.NewOutboxRepository(sqliteDB)
+	unitOfWork := sqlite.NewUnitOfWork(sqliteDB)
 
 	// Wire use cases — inject driven ports
-	createGreeting := usecase.NewCreateGreetingUseCase(greetingRepo)
+	createGreeting := usecase.NewCreateGreetingUseCase(unitOfWork, greetingRepo, outboxRepo)
 	getGreeting := usecase.NewGetGreetingUseCase(greetingRepo)
 	listGreetings := usecase.NewListGreetingsUseCase(greetingRepo)
 
@@ -74,6 +77,19 @@ func main() {
 		Addr:    cfg.Addr,
 		Handler: router,
 	}
+
+	// Start outbox relay
+	relayCtx, relayCancel := context.WithCancel(context.Background())
+	relay := outbox.NewRelay(outboxRepo, func(ctx context.Context, aggType, aggID, evtType string, payload []byte) error {
+		slog.Info("outbox dispatch",
+			"aggregate_type", aggType,
+			"aggregate_id", aggID,
+			"event_type", evtType,
+			"payload", string(payload),
+		)
+		return nil
+	}, 5*time.Second, 50)
+	go relay.Start(relayCtx)
 
 	// Listen for SIGINT/SIGTERM in the background
 	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -92,6 +108,9 @@ func main() {
 	<-sigCtx.Done()
 	stop()
 	slog.Info("Shutting down gracefully...")
+
+	// Stop relay first so it stops issuing queries
+	relayCancel()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

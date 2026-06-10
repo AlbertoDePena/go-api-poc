@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/craneww/api-poc/internal/core/domain"
@@ -19,11 +20,21 @@ type CreateGreetingParams struct {
 }
 
 type CreateGreeting struct {
+	unitOfWork   repository.UnitOfWork
 	greetingRepo repository.GreetingRepository
+	outboxRepo   repository.OutboxRepository
 }
 
-func NewCreateGreetingUseCase(repo repository.GreetingRepository) *CreateGreeting {
-	return &CreateGreeting{greetingRepo: repo}
+func NewCreateGreetingUseCase(
+	uow repository.UnitOfWork,
+	greetingRepo repository.GreetingRepository,
+	outboxRepo repository.OutboxRepository,
+) *CreateGreeting {
+	return &CreateGreeting{
+		unitOfWork:   uow,
+		greetingRepo: greetingRepo,
+		outboxRepo:   outboxRepo,
+	}
 }
 
 func (uc *CreateGreeting) Execute(ctx context.Context, params CreateGreetingParams) (*domain.Greeting, error) {
@@ -33,7 +44,31 @@ func (uc *CreateGreeting) Execute(ctx context.Context, params CreateGreetingPara
 
 	greeting := domain.NewGreeting(uuid.New().String(), params.Name)
 
-	if err := uc.greetingRepo.Save(ctx, greeting); err != nil {
+	err := uc.unitOfWork.Do(ctx, func(ctx context.Context) error {
+		if err := uc.greetingRepo.Save(ctx, greeting); err != nil {
+			return fmt.Errorf("save greeting: %w", err)
+		}
+
+		payload, err := json.Marshal(greeting)
+		if err != nil {
+			return fmt.Errorf("marshal outbox payload: %w", err)
+		}
+
+		outboxMsg := domain.NewOutboxMessage(
+			uuid.New().String(),
+			"greeting",
+			greeting.ID,
+			"greeting.created",
+			payload,
+		)
+
+		if err := uc.outboxRepo.Save(ctx, outboxMsg); err != nil {
+			return fmt.Errorf("save outbox message: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
 		return nil, fmt.Errorf("create greeting: %w", err)
 	}
 
