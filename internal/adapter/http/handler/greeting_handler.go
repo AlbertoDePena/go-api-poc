@@ -55,10 +55,12 @@ func (h *GreetingHandler) CreateGreeting(w http.ResponseWriter, r *http.Request)
 
 	greeting, err := h.createGreeting.Execute(r.Context(), req.ToParams())
 	if err != nil {
+		h.metrics.GreetingCreated(r.Context(), false)
 		writeJSON(w, domainErrToHTTP(err), dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
+	h.metrics.GreetingCreated(r.Context(), true)
 	writeJSON(w, http.StatusCreated, dto.GreetingFromDomain(greeting))
 }
 
@@ -78,10 +80,12 @@ func (h *GreetingHandler) GetGreeting(w http.ResponseWriter, r *http.Request) {
 
 	greeting, err := h.getGreeting.Execute(r.Context(), id)
 	if err != nil {
+		h.metrics.GreetingViewed(r.Context(), false)
 		writeJSON(w, domainErrToHTTP(err), dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
+	h.metrics.GreetingViewed(r.Context(), true)
 	writeJSON(w, http.StatusOK, dto.GreetingFromDomain(greeting))
 }
 
@@ -94,15 +98,15 @@ func (h *GreetingHandler) GetGreeting(w http.ResponseWriter, r *http.Request) {
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /api/v1/greetings [get]
 func (h *GreetingHandler) ListGreetings(w http.ResponseWriter, r *http.Request) {
-	done := h.metrics.RecordGreeting(r.Context(), "Spanish")
 	greetings, err := h.listGreetings.Execute(r.Context())
 	if err != nil {
-		done(err)
+		h.metrics.GreetingsListed(r.Context(), false)
 		writeJSON(w, http.StatusInternalServerError, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
+
+	h.metrics.GreetingsListed(r.Context(), true)
 	writeJSON(w, http.StatusOK, dto.GreetingsFromDomain(greetings))
-	done(nil)
 }
 
 func domainErrToHTTP(err error) int {

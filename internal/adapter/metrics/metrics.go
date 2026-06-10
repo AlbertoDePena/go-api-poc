@@ -1,11 +1,10 @@
-// Package metrics defines the custom OpenTelemetry instruments for the
-// greetings service. Construct it with New after otel.Setup has installed
-// the global MeterProvider, then call the helpers from your handlers.
+// Package metrics provides the OpenTelemetry-backed implementation of the
+// core GreetingMetrics driven port. These are business metrics — observability
+// (latency, in-flight, throughput) is handled by the OTel HTTP middleware.
 package metrics
 
 import (
 	"context"
-	"time"
 
 	coremetrics "github.com/craneww/api-poc/internal/core/metrics"
 	"go.opentelemetry.io/otel"
@@ -15,69 +14,59 @@ import (
 
 var _ coremetrics.GreetingMetrics = (*Metrics)(nil)
 
-// meterName identifies the instrumentation scope for these metrics.
 const meterName = "github.com/craneww/api-poc/metrics"
 
-// Metrics bundles the instruments used by the greetings service.
+// Metrics bundles the business-level instruments for the greetings service.
 type Metrics struct {
-	served   metric.Int64Counter       // total greetings served
-	duration metric.Float64Histogram   // greeting handling latency (ms)
-	inFlight metric.Int64UpDownCounter // greetings currently being handled
+	created metric.Int64Counter
+	listed  metric.Int64Counter
+	viewed  metric.Int64Counter
 }
 
-// New creates the greetings instruments from the global MeterProvider.
+// New creates the greeting business instruments from the global MeterProvider.
 // Call this AFTER otel.Setup has run, otherwise the instruments bind to the
 // no-op provider and record nothing.
 func New() (*Metrics, error) {
 	m := otel.Meter(meterName)
 
-	served, err := m.Int64Counter(
-		"greetings.served",
-		metric.WithDescription("Total number of greetings served"),
+	created, err := m.Int64Counter(
+		"greetings.created",
+		metric.WithDescription("Total number of greetings created"),
 		metric.WithUnit("{greeting}"),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	duration, err := m.Float64Histogram(
-		"greetings.duration",
-		metric.WithDescription("Time taken to handle a greeting"),
-		metric.WithUnit("ms"),
+	listed, err := m.Int64Counter(
+		"greetings.listed",
+		metric.WithDescription("Total number of times greetings were listed"),
+		metric.WithUnit("{request}"),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	inFlight, err := m.Int64UpDownCounter(
-		"greetings.in_flight",
-		metric.WithDescription("Greetings currently being handled"),
-		metric.WithUnit("{greeting}"),
+	viewed, err := m.Int64Counter(
+		"greetings.viewed",
+		metric.WithDescription("Total number of individual greeting views"),
+		metric.WithUnit("{request}"),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Metrics{served: served, duration: duration, inFlight: inFlight}, nil
+	return &Metrics{created: created, listed: listed, viewed: viewed}, nil
 }
 
-// RecordGreeting instruments a single greeting. Wrap your handler logic with
-// the returned done func, which records latency and the served count once the
-// work completes.
-//
-//	done := m.RecordGreeting(ctx, "en")
-//	defer done(nil) // pass the handler error, or nil on success
-func (m *Metrics) RecordGreeting(ctx context.Context, language string) (done func(err error)) {
-	start := time.Now()
-	m.inFlight.Add(ctx, 1, metric.WithAttributes(attribute.String("language", language)))
+func (m *Metrics) GreetingCreated(ctx context.Context, success bool) {
+	m.created.Add(ctx, 1, metric.WithAttributes(attribute.Bool("success", success)))
+}
 
-	return func(err error) {
-		attrs := metric.WithAttributes(
-			attribute.String("language", language),
-			attribute.Bool("success", err == nil),
-		)
-		m.served.Add(ctx, 1, attrs)
-		m.duration.Record(ctx, float64(time.Since(start).Milliseconds()), attrs)
-		m.inFlight.Add(ctx, -1, metric.WithAttributes(attribute.String("language", language)))
-	}
+func (m *Metrics) GreetingsListed(ctx context.Context, success bool) {
+	m.listed.Add(ctx, 1, metric.WithAttributes(attribute.Bool("success", success)))
+}
+
+func (m *Metrics) GreetingViewed(ctx context.Context, success bool) {
+	m.viewed.Add(ctx, 1, metric.WithAttributes(attribute.Bool("success", success)))
 }
