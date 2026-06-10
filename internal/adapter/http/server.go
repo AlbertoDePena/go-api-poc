@@ -9,13 +9,11 @@ import (
 
 	"github.com/craneww/api-poc/internal/adapter/http/handler"
 	customMiddleware "github.com/craneww/api-poc/internal/adapter/http/middleware"
-	"github.com/craneww/api-poc/internal/core/metrics"
 	"github.com/craneww/api-poc/internal/core/usecase"
 )
 
 func NewServer(
 	serviceName string,
-	metrics metrics.GreetingMetrics,
 	tokenVerifier *oidc.IDTokenVerifier,
 	pinger handler.Pinger,
 	createGreeting usecase.CreateGreetingUseCase,
@@ -29,7 +27,7 @@ func NewServer(
 	r.Use(otelhttp.NewMiddleware(serviceName))
 
 	healthHandler := handler.NewHealthHandler(pinger)
-	greetingHandler := handler.NewGreetingHandler(metrics, createGreeting, getGreeting, listGreetings)
+	greetingHandler := handler.NewGreetingHandler(createGreeting, getGreeting, listGreetings)
 
 	r.Get("/health/live", healthHandler.Liveness)
 	r.Get("/health/ready", healthHandler.Readiness)

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/craneww/api-poc/internal/core/domain"
+	"github.com/craneww/api-poc/internal/core/metrics"
 	"github.com/craneww/api-poc/internal/core/repository"
 )
 
@@ -13,13 +14,21 @@ type GetGreetingUseCase interface {
 }
 
 type GetGreeting struct {
+	metrics      metrics.GreetingMetrics
 	greetingRepo repository.GreetingRepository
 }
 
-func NewGetGreetingUseCase(repo repository.GreetingRepository) *GetGreeting {
-	return &GetGreeting{greetingRepo: repo}
+func NewGetGreetingUseCase(metrics metrics.GreetingMetrics, repo repository.GreetingRepository) *GetGreeting {
+	return &GetGreeting{metrics: metrics, greetingRepo: repo}
 }
 
 func (uc *GetGreeting) Execute(ctx context.Context, id string) (*domain.Greeting, error) {
-	return uc.greetingRepo.FindByID(ctx, id)
+	greeting, err := uc.greetingRepo.FindByID(ctx, id)
+	if err != nil {
+		uc.metrics.GreetingViewed(ctx, false)
+		return nil, err
+	}
+
+	uc.metrics.GreetingViewed(ctx, true)
+	return greeting, nil
 }

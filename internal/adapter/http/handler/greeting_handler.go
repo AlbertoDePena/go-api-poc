@@ -9,25 +9,21 @@ import (
 
 	"github.com/craneww/api-poc/internal/adapter/http/dto"
 	"github.com/craneww/api-poc/internal/core/domain"
-	"github.com/craneww/api-poc/internal/core/metrics"
 	"github.com/craneww/api-poc/internal/core/usecase"
 )
 
 type GreetingHandler struct {
-	metrics        metrics.GreetingMetrics
 	createGreeting usecase.CreateGreetingUseCase
 	getGreeting    usecase.GetGreetingUseCase
 	listGreetings  usecase.ListGreetingsUseCase
 }
 
 func NewGreetingHandler(
-	metrics metrics.GreetingMetrics,
 	create usecase.CreateGreetingUseCase,
 	get usecase.GetGreetingUseCase,
 	list usecase.ListGreetingsUseCase,
 ) *GreetingHandler {
 	return &GreetingHandler{
-		metrics:        metrics,
 		createGreeting: create,
 		getGreeting:    get,
 		listGreetings:  list,
@@ -55,12 +51,10 @@ func (h *GreetingHandler) CreateGreeting(w http.ResponseWriter, r *http.Request)
 
 	greeting, err := h.createGreeting.Execute(r.Context(), req.ToParams())
 	if err != nil {
-		h.metrics.GreetingCreated(r.Context(), false)
 		writeJSON(w, domainErrToHTTP(err), dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	h.metrics.GreetingCreated(r.Context(), true)
 	writeJSON(w, http.StatusCreated, dto.GreetingFromDomain(greeting))
 }
 
@@ -80,12 +74,10 @@ func (h *GreetingHandler) GetGreeting(w http.ResponseWriter, r *http.Request) {
 
 	greeting, err := h.getGreeting.Execute(r.Context(), id)
 	if err != nil {
-		h.metrics.GreetingViewed(r.Context(), false)
 		writeJSON(w, domainErrToHTTP(err), dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	h.metrics.GreetingViewed(r.Context(), true)
 	writeJSON(w, http.StatusOK, dto.GreetingFromDomain(greeting))
 }
 
@@ -100,12 +92,10 @@ func (h *GreetingHandler) GetGreeting(w http.ResponseWriter, r *http.Request) {
 func (h *GreetingHandler) ListGreetings(w http.ResponseWriter, r *http.Request) {
 	greetings, err := h.listGreetings.Execute(r.Context())
 	if err != nil {
-		h.metrics.GreetingsListed(r.Context(), false)
 		writeJSON(w, http.StatusInternalServerError, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	h.metrics.GreetingsListed(r.Context(), true)
 	writeJSON(w, http.StatusOK, dto.GreetingsFromDomain(greetings))
 }
 

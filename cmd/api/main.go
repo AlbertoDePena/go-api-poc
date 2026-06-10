@@ -73,12 +73,12 @@ func main() {
 	unitOfWork := sqlite.NewUnitOfWork(sqliteDB)
 
 	// Wire use cases — inject driven ports
-	createGreeting := usecase.NewCreateGreetingUseCase(unitOfWork, greetingRepo, outboxRepo)
-	getGreeting := usecase.NewGetGreetingUseCase(greetingRepo)
-	listGreetings := usecase.NewListGreetingsUseCase(greetingRepo)
+	createGreeting := usecase.NewCreateGreetingUseCase(metrics, unitOfWork, greetingRepo, outboxRepo)
+	getGreeting := usecase.NewGetGreetingUseCase(metrics, greetingRepo)
+	listGreetings := usecase.NewListGreetingsUseCase(metrics, greetingRepo)
 
 	// Wire driving adapter (HTTP server) — inject use case interfaces
-	router := httpserver.NewServer(serviceName, metrics, idTokenVerifier, sqliteDB, createGreeting, getGreeting, listGreetings)
+	router := httpserver.NewServer(serviceName, idTokenVerifier, sqliteDB, createGreeting, getGreeting, listGreetings)
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,

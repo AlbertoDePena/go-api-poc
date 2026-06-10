@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/craneww/api-poc/internal/core/domain"
+	"github.com/craneww/api-poc/internal/core/metrics"
 	"github.com/craneww/api-poc/internal/core/repository"
 	"github.com/google/uuid"
 )
@@ -20,17 +21,20 @@ type CreateGreetingParams struct {
 }
 
 type CreateGreeting struct {
+	metrics      metrics.GreetingMetrics
 	unitOfWork   repository.UnitOfWork
 	greetingRepo repository.GreetingRepository
 	outboxRepo   repository.OutboxRepository
 }
 
 func NewCreateGreetingUseCase(
+	metrics metrics.GreetingMetrics,
 	uow repository.UnitOfWork,
 	greetingRepo repository.GreetingRepository,
 	outboxRepo repository.OutboxRepository,
 ) *CreateGreeting {
 	return &CreateGreeting{
+		metrics:      metrics,
 		unitOfWork:   uow,
 		greetingRepo: greetingRepo,
 		outboxRepo:   outboxRepo,
@@ -69,8 +73,10 @@ func (uc *CreateGreeting) Execute(ctx context.Context, params CreateGreetingPara
 		return nil
 	})
 	if err != nil {
+		uc.metrics.GreetingCreated(ctx, false)
 		return nil, fmt.Errorf("create greeting: %w", err)
 	}
 
+	uc.metrics.GreetingCreated(ctx, true)
 	return greeting, nil
 }
