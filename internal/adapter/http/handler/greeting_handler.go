@@ -9,21 +9,25 @@ import (
 
 	"github.com/craneww/api-poc/internal/adapter/http/dto"
 	"github.com/craneww/api-poc/internal/core/domain"
+	"github.com/craneww/api-poc/internal/core/metrics"
 	"github.com/craneww/api-poc/internal/core/usecase"
 )
 
 type GreetingHandler struct {
+	metrics        metrics.GreetingMetrics
 	createGreeting usecase.CreateGreetingUseCase
 	getGreeting    usecase.GetGreetingUseCase
 	listGreetings  usecase.ListGreetingsUseCase
 }
 
 func NewGreetingHandler(
+	metrics metrics.GreetingMetrics,
 	create usecase.CreateGreetingUseCase,
 	get usecase.GetGreetingUseCase,
 	list usecase.ListGreetingsUseCase,
 ) *GreetingHandler {
 	return &GreetingHandler{
+		metrics:        metrics,
 		createGreeting: create,
 		getGreeting:    get,
 		listGreetings:  list,
@@ -90,13 +94,15 @@ func (h *GreetingHandler) GetGreeting(w http.ResponseWriter, r *http.Request) {
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /api/v1/greetings [get]
 func (h *GreetingHandler) ListGreetings(w http.ResponseWriter, r *http.Request) {
+	done := h.metrics.RecordGreeting(r.Context(), "Spanish")
 	greetings, err := h.listGreetings.Execute(r.Context())
 	if err != nil {
+		done(err)
 		writeJSON(w, http.StatusInternalServerError, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
-
 	writeJSON(w, http.StatusOK, dto.GreetingsFromDomain(greetings))
+	done(nil)
 }
 
 func domainErrToHTTP(err error) int {

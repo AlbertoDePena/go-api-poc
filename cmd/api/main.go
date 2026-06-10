@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	_ "github.com/craneww/api-poc/docs"
 	httpserver "github.com/craneww/api-poc/internal/adapter/http"
+	"github.com/craneww/api-poc/internal/adapter/metrics"
 	appOtel "github.com/craneww/api-poc/internal/adapter/otel"
 	"github.com/craneww/api-poc/internal/adapter/outbox"
 	sqlite "github.com/craneww/api-poc/internal/adapter/sqlite"
@@ -55,6 +56,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	metrics, err := metrics.New()
+	if err != nil {
+		slog.Error("failed to initialise metrics", "error", err)
+		os.Exit(1)
+	}
+
 	// Wire driven adapters
 	sqliteDB, err := sqlite.Open(cfg.DatabasePath)
 	if err != nil {
@@ -71,7 +78,7 @@ func main() {
 	listGreetings := usecase.NewListGreetingsUseCase(greetingRepo)
 
 	// Wire driving adapter (HTTP server) — inject use case interfaces
-	router := httpserver.NewServer(serviceName, idTokenVerifier, sqliteDB, createGreeting, getGreeting, listGreetings)
+	router := httpserver.NewServer(serviceName, metrics, idTokenVerifier, sqliteDB, createGreeting, getGreeting, listGreetings)
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,
