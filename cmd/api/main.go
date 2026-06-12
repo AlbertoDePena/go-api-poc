@@ -53,7 +53,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	metrics, err := metrics.New()
+	metrics, err := metrics.NewMetrics()
 	if err != nil {
 		slog.Error("failed to initialise metrics", "error", err)
 		os.Exit(1)

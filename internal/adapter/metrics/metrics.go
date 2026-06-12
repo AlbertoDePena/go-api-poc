@@ -26,7 +26,7 @@ type Metrics struct {
 // New creates the greeting business instruments from the global MeterProvider.
 // Call this AFTER otel.Setup has run, otherwise the instruments bind to the
 // no-op provider and record nothing.
-func New() (*Metrics, error) {
+func NewMetrics() (*Metrics, error) {
 	m := otel.Meter(meterName)
 
 	created, err := m.Int64Counter(
