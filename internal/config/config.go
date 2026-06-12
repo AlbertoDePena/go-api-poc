@@ -8,8 +8,8 @@ import (
 
 type Config struct {
 	Addr                 string
-	AzureTenantID        string
-	AzureClientID        string
+	AzureIssuer          string
+	AzureAudience        string
 	OtelExporter         string
 	OtelExporterEndpoint string
 	DatabasePath         string
@@ -19,19 +19,19 @@ func Load() Config {
 	_ = godotenv.Load()
 
 	addr := os.Getenv("ADDR")
-	tenantID := os.Getenv("AZURE_TENANT_ID")
-	clientID := os.Getenv("AZURE_CLIENT_ID")
+	issuer := os.Getenv("AZURE_ISSUER")
+	audience := os.Getenv("AZURE_AUDIENCE")
 	otelExporter := os.Getenv("OTEL_EXPORTER")
 	otelEndpoint := os.Getenv("OTEL_EXPORTER_ENDPOINT")
 	databasePath := os.Getenv("DATABASE_PATH")
 	if addr == "" {
 		addr = ":8080"
 	}
-	if tenantID == "" {
-		panic("AZURE_TENANT_ID environment variable is required")
+	if issuer == "" {
+		panic("AZURE_ISSUER environment variable is required")
 	}
-	if clientID == "" {
-		panic("AZURE_CLIENT_ID environment variable is required")
+	if audience == "" {
+		panic("AZURE_AUDIENCE environment variable is required")
 	}
 	if otelExporter == "" {
 		otelExporter = "stdout"
@@ -44,8 +44,8 @@ func Load() Config {
 	}
 	return Config{
 		Addr:                 addr,
-		AzureTenantID:        tenantID,
-		AzureClientID:        clientID,
+		AzureIssuer:          issuer,
+		AzureAudience:        audience,
 		OtelExporter:         otelExporter,
 		OtelExporterEndpoint: otelEndpoint,
 		DatabasePath:         databasePath,

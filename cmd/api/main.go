@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -35,14 +34,12 @@ func main() {
 	cfg := config.Load()
 	ctx := context.Background()
 
-	issuer := fmt.Sprintf("https://sts.windows.net/%s/", cfg.AzureTenantID)
-
-	oidcProvider, err := oidc.NewProvider(ctx, issuer)
+	oidcProvider, err := oidc.NewProvider(ctx, cfg.AzureIssuer)
 	if err != nil {
 		log.Fatalf("oidc discovery failed: %v", err)
 	}
 
-	idTokenVerifier := oidcProvider.Verifier(&oidc.Config{ClientID: cfg.AzureClientID})
+	idTokenVerifier := oidcProvider.Verifier(&oidc.Config{ClientID: cfg.AzureAudience})
 
 	// --- OpenTelemetry ---
 	otelShutdown, err := appOtel.Setup(ctx, appOtel.Config{
