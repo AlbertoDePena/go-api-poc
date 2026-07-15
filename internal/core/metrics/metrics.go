@@ -10,6 +10,8 @@ import "context"
 // throughput) — that is handled by the OTel HTTP middleware.
 type GreetingMetrics interface {
 	GreetingCreated(ctx context.Context, success bool)
+
 	GreetingsListed(ctx context.Context, success bool)
+
 	GreetingViewed(ctx context.Context, success bool)
 }
