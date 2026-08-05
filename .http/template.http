@@ -11,16 +11,7 @@ client_id=<enter-your-application-id-here>
 &grant_type=client_credentials
 
 ###
-GET http://localhost:8080/swagger/index.html#/
-
-###
-GET http://localhost:8080/api/v1/greetings
+GET http://localhost:8080/api/v1/me
 Content-Type: application/json
 Accept: application/json
 Authorization: Bearer {{tokenRequest.response.body.$.access_token}}
-
-###
-GET http://localhost:8080/health/live
-
-###
-GET http://localhost:8080/health/ready
