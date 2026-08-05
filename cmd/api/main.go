@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,11 +11,11 @@ import (
 	"time"
 
 	_ "github.com/AlbertoDePena/go-api-poc/docs"
-	httpserver "github.com/AlbertoDePena/go-api-poc/internal/adapter/http"
-	"github.com/AlbertoDePena/go-api-poc/internal/adapter/metrics"
-	appOtel "github.com/AlbertoDePena/go-api-poc/internal/adapter/otel"
-	"github.com/AlbertoDePena/go-api-poc/internal/adapter/outbox"
-	sqlite "github.com/AlbertoDePena/go-api-poc/internal/adapter/sqlite"
+	httpsAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/http"
+	metricsAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/metrics"
+	otelAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/otel"
+	outboxAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/outbox"
+	sqliteAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/sqlite"
 	"github.com/AlbertoDePena/go-api-poc/internal/config"
 	"github.com/AlbertoDePena/go-api-poc/internal/core/usecase"
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -37,42 +36,41 @@ func main() {
 
 	oidcProvider, err := oidc.NewProvider(ctx, cfg.AzureIssuer)
 	if err != nil {
-		log.Fatalf("oidc discovery failed: %v", err)
+		fmt.Fprintf(os.Stderr, "failed to initialise oidc: %v\n", err)
+		os.Exit(1)
 	}
 
 	idTokenVerifier := oidcProvider.Verifier(&oidc.Config{ClientID: cfg.AzureAudience})
 
 	// --- OpenTelemetry ---
-	otelShutdown, err := appOtel.Setup(ctx, appOtel.Config{
+	otelShutdown, err := otelAdapter.Setup(ctx, otelAdapter.Config{
 		ServiceName:    serviceName,
 		ServiceVersion: "1.0.0",
 		ExporterType:   cfg.OtelExporter,
 		OTLPEndpoint:   cfg.OtelExporterEndpoint,
 	})
 	if err != nil {
-		slog.Error("failed to initialise OpenTelemetry", "error", err)
+		fmt.Fprintf(os.Stderr, "failed to initialise OpenTelemetry: %v\n", err)
 		os.Exit(1)
 	}
 
-	metrics, err := metrics.NewMetrics()
+	metrics, err := metricsAdapter.NewMetrics()
 	if err != nil {
-		slog.Error("failed to initialise metrics", "error", err)
+		fmt.Fprintf(os.Stderr, "failed to initialise metrics: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Wire driven adapters
-	sqliteDB, err := sqlite.Open(cfg.DatabasePath)
+	sqliteDB, err := sqliteAdapter.Open(cfg.DatabasePath)
 	if err != nil {
-		// After appOtel.Setup, slog.SetDefault has bridged both slog and the
-		// standard log package to an OTel batch processor that never flushes
-		// before os.Exit. Write fatal startup errors straight to stderr so
+		// Write fatal startup errors straight to stderr so
 		// they are guaranteed to reach the console.
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
 	}
-	greetingRepo := sqlite.NewGreetingRepository(sqliteDB)
-	outboxRepo := sqlite.NewOutboxRepository(sqliteDB)
-	unitOfWork := sqlite.NewUnitOfWork(sqliteDB)
+	greetingRepo := sqliteAdapter.NewGreetingRepository(sqliteDB)
+	outboxRepo := sqliteAdapter.NewOutboxRepository(sqliteDB)
+	unitOfWork := sqliteAdapter.NewUnitOfWork(sqliteDB)
 
 	// Wire use cases — inject driven ports
 	createGreeting := usecase.NewCreateGreetingUseCase(metrics, unitOfWork, greetingRepo, outboxRepo)
@@ -80,7 +78,7 @@ func main() {
 	listGreetings := usecase.NewListGreetingsUseCase(metrics, greetingRepo)
 
 	// Wire driving adapter (HTTP server) — inject use case interfaces
-	router := httpserver.NewServer(serviceName, idTokenVerifier, sqliteDB, createGreeting, getGreeting, listGreetings)
+	router := httpsAdapter.NewServer(serviceName, idTokenVerifier, sqliteDB, createGreeting, getGreeting, listGreetings)
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,
@@ -89,7 +87,7 @@ func main() {
 
 	// Start outbox relay
 	relayCtx, relayCancel := context.WithCancel(context.Background())
-	relay := outbox.NewRelay(outboxRepo, func(ctx context.Context, aggType, aggID, evtType string, payload []byte) error {
+	relay := outboxAdapter.NewRelay(outboxRepo, func(ctx context.Context, aggType, aggID, evtType string, payload []byte) error {
 		slog.Info("outbox dispatch",
 			"aggregate_type", aggType,
 			"aggregate_id", aggID,
@@ -108,7 +106,7 @@ func main() {
 		slog.Info("Starting server", "addr", cfg.Addr)
 		slog.Info("Swagger UI available", "url", "http://localhost"+cfg.Addr+"/swagger/index.html")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("listen failed", "error", err)
+			fmt.Fprintf(os.Stderr, "failed to start server: %v\n", err)
 			os.Exit(1)
 		}
 	}()
