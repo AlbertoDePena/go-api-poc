@@ -2,3 +2,6 @@
 *.db
 *.db-wal
 *.db-shm
+
+# Local HTTP client file with real secrets — copy .http/template.http to .http/localhost.http
+.http/localhost.http
