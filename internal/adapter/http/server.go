@@ -7,9 +7,9 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/craneww/api-poc/internal/adapter/http/handler"
-	customMiddleware "github.com/craneww/api-poc/internal/adapter/http/middleware"
-	"github.com/craneww/api-poc/internal/core/usecase"
+	"github.com/AlbertoDePena/go-api-poc/internal/adapter/http/handler"
+	customMiddleware "github.com/AlbertoDePena/go-api-poc/internal/adapter/http/middleware"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/usecase"
 )
 
 func NewServer(

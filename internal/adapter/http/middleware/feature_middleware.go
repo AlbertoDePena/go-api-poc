@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/craneww/api-poc/internal/core/feature"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/feature"
 )
 
 func RequireFeature(fm feature.FeatureManager, feature string) func(http.Handler) http.Handler {

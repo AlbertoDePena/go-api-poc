@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/craneww/api-poc/internal/adapter/sqlite"
-	"github.com/craneww/api-poc/internal/core/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/adapter/sqlite"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
 )
 
 // newTestDB opens a fresh SQLite database in a temp directory.

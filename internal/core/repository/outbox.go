@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/craneww/api-poc/internal/core/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
 )
 
 // OutboxRepository is a driven port for outbox message persistence.

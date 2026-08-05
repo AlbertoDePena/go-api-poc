@@ -6,7 +6,7 @@ package metrics
 import (
 	"context"
 
-	coremetrics "github.com/craneww/api-poc/internal/core/metrics"
+	coremetrics "github.com/AlbertoDePena/go-api-poc/internal/core/metrics"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -14,7 +14,7 @@ import (
 
 var _ coremetrics.GreetingMetrics = (*Metrics)(nil)
 
-const meterName = "github.com/craneww/api-poc/metrics"
+const meterName = "github.com/AlbertoDePena/go-api-poc/metrics"
 
 // Metrics bundles the business-level instruments for the greetings service.
 type Metrics struct {

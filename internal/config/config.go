@@ -40,7 +40,7 @@ func Load() Config {
 		otelEndpoint = "localhost:18889"
 	}
 	if databasePath == "" {
-		databasePath = "api-poc.db"
+		panic("DATABASE_PATH environment variable is required")
 	}
 	return Config{
 		Addr:                 addr,

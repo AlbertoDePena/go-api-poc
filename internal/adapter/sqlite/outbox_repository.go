@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/craneww/api-poc/internal/core/domain"
-	"github.com/craneww/api-poc/internal/core/repository"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/repository"
 )
 
 var _ repository.OutboxRepository = (*OutboxRepository)(nil)

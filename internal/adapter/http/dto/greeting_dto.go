@@ -3,8 +3,8 @@ package dto
 import (
 	"time"
 
-	"github.com/craneww/api-poc/internal/core/domain"
-	"github.com/craneww/api-poc/internal/core/usecase"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/usecase"
 )
 
 // CreateGreetingRequest is the HTTP request body for creating a greeting.

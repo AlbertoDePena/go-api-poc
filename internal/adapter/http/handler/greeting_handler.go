@@ -7,9 +7,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/craneww/api-poc/internal/adapter/http/dto"
-	"github.com/craneww/api-poc/internal/core/domain"
-	"github.com/craneww/api-poc/internal/core/usecase"
+	"github.com/AlbertoDePena/go-api-poc/internal/adapter/http/dto"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/usecase"
 )
 
 type GreetingHandler struct {

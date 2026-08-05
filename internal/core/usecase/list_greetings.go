@@ -3,9 +3,9 @@ package usecase
 import (
 	"context"
 
-	"github.com/craneww/api-poc/internal/core/domain"
-	"github.com/craneww/api-poc/internal/core/metrics"
-	"github.com/craneww/api-poc/internal/core/repository"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/metrics"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/repository"
 )
 
 // ListGreetingsUseCase is a driving port.

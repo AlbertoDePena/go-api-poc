@@ -10,15 +10,15 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/AlbertoDePena/go-api-poc/docs"
+	httpserver "github.com/AlbertoDePena/go-api-poc/internal/adapter/http"
+	"github.com/AlbertoDePena/go-api-poc/internal/adapter/metrics"
+	appOtel "github.com/AlbertoDePena/go-api-poc/internal/adapter/otel"
+	"github.com/AlbertoDePena/go-api-poc/internal/adapter/outbox"
+	sqlite "github.com/AlbertoDePena/go-api-poc/internal/adapter/sqlite"
+	"github.com/AlbertoDePena/go-api-poc/internal/config"
+	"github.com/AlbertoDePena/go-api-poc/internal/core/usecase"
 	"github.com/coreos/go-oidc/v3/oidc"
-	_ "github.com/craneww/api-poc/docs"
-	httpserver "github.com/craneww/api-poc/internal/adapter/http"
-	"github.com/craneww/api-poc/internal/adapter/metrics"
-	appOtel "github.com/craneww/api-poc/internal/adapter/otel"
-	"github.com/craneww/api-poc/internal/adapter/outbox"
-	sqlite "github.com/craneww/api-poc/internal/adapter/sqlite"
-	"github.com/craneww/api-poc/internal/config"
-	"github.com/craneww/api-poc/internal/core/usecase"
 )
 
 // @title           API POC
