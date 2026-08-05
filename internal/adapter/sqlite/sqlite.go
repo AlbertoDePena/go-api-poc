@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/url"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -29,6 +31,18 @@ type DB struct {
 // It configures WAL mode, busy timeout, and other PRAGMAs internally,
 // then runs all pending schema migrations before returning.
 func Open(databasePath string) (*DB, error) {
+	// SQLite will not create missing parent directories; opening a file in
+	// one fails deep inside the driver with an opaque error. Check up front
+	// and return an actionable message instead.
+	if dir := filepath.Dir(databasePath); dir != "" && dir != "." {
+		if _, err := os.Stat(dir); err != nil {
+			if os.IsNotExist(err) {
+				return nil, fmt.Errorf("database directory %q does not exist (create it, e.g. `mkdir -p %s`, or fix DATABASE_PATH)", dir, dir)
+			}
+			return nil, fmt.Errorf("stat database dir %q: %w", dir, err)
+		}
+	}
+
 	writeDSN := buildDSN(databasePath, false)
 	readDSN := buildDSN(databasePath, true)
 

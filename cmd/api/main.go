@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -62,7 +63,11 @@ func main() {
 	// Wire driven adapters
 	sqliteDB, err := sqlite.Open(cfg.DatabasePath)
 	if err != nil {
-		slog.Error("failed to open database", "error", err)
+		// After appOtel.Setup, slog.SetDefault has bridged both slog and the
+		// standard log package to an OTel batch processor that never flushes
+		// before os.Exit. Write fatal startup errors straight to stderr so
+		// they are guaranteed to reach the console.
+		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
 	}
 	greetingRepo := sqlite.NewGreetingRepository(sqliteDB)
