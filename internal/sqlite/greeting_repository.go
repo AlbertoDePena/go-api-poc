@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
-	"github.com/AlbertoDePena/go-api-poc/internal/core/repository"
+	"github.com/AlbertoDePena/go-api-poc/internal/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/repository"
 )
 
 var _ repository.GreetingRepository = (*GreetingRepository)(nil)

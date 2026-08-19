@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/AlbertoDePena/go-api-poc/internal/core/repository"
+	"github.com/AlbertoDePena/go-api-poc/internal/repository"
 )
 
 // MessageHandler processes a dispatched outbox message.

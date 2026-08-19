@@ -6,13 +6,12 @@ package metrics
 import (
 	"context"
 
-	coremetrics "github.com/AlbertoDePena/go-api-poc/internal/core/metrics"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
-var _ coremetrics.GreetingMetrics = (*Metrics)(nil)
+var _ GreetingMetrics = (*Metrics)(nil)
 
 const meterName = "github.com/AlbertoDePena/go-api-poc/metrics"
 

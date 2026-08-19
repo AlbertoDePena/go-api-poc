@@ -11,13 +11,11 @@ import (
 	"time"
 
 	_ "github.com/AlbertoDePena/go-api-poc/docs"
-	httpsAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/http"
-	metricsAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/metrics"
-	otelAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/otel"
-	outboxAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/outbox"
-	sqliteAdapter "github.com/AlbertoDePena/go-api-poc/internal/adapter/sqlite"
 	"github.com/AlbertoDePena/go-api-poc/internal/config"
-	"github.com/AlbertoDePena/go-api-poc/internal/core/usecase"
+	"github.com/AlbertoDePena/go-api-poc/internal/metrics"
+	"github.com/AlbertoDePena/go-api-poc/internal/otel"
+	"github.com/AlbertoDePena/go-api-poc/internal/service"
+	"github.com/AlbertoDePena/go-api-poc/internal/sqlite"
 	"github.com/coreos/go-oidc/v3/oidc"
 )
 
@@ -31,7 +29,7 @@ import (
 const serviceName = "api-poc"
 
 func main() {
-	cfg := config.Load()
+	cfg := config.LoadAPI()
 	ctx := context.Background()
 
 	oidcProvider, err := oidc.NewProvider(ctx, cfg.AzureIssuer)
@@ -43,7 +41,7 @@ func main() {
 	idTokenVerifier := oidcProvider.Verifier(&oidc.Config{ClientID: cfg.AzureAudience})
 
 	// --- OpenTelemetry ---
-	otelShutdown, err := otelAdapter.Setup(ctx, otelAdapter.Config{
+	otelShutdown, err := otel.Setup(ctx, otel.Config{
 		ServiceName:    serviceName,
 		ServiceVersion: "1.0.0",
 		ExporterType:   cfg.OtelExporter,
@@ -54,49 +52,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	metrics, err := metricsAdapter.NewMetrics()
+	businessMetrics, err := metrics.NewMetrics()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialise metrics: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Wire driven adapters
-	sqliteDB, err := sqliteAdapter.Open(cfg.DatabasePath)
+	sqliteDB, err := sqlite.Open(cfg.DatabasePath)
 	if err != nil {
 		// Write fatal startup errors straight to stderr so
 		// they are guaranteed to reach the console.
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
 	}
-	greetingRepo := sqliteAdapter.NewGreetingRepository(sqliteDB)
-	outboxRepo := sqliteAdapter.NewOutboxRepository(sqliteDB)
-	unitOfWork := sqliteAdapter.NewUnitOfWork(sqliteDB)
+	greetingRepo := sqlite.NewGreetingRepository(sqliteDB)
+	outboxRepo := sqlite.NewOutboxRepository(sqliteDB)
+	transactor := sqlite.NewTransactor(sqliteDB)
 
-	// Wire use cases — inject driven ports
-	createGreeting := usecase.NewCreateGreetingUseCase(metrics, unitOfWork, greetingRepo, outboxRepo)
-	getGreeting := usecase.NewGetGreetingUseCase(metrics, greetingRepo)
-	listGreetings := usecase.NewListGreetingsUseCase(metrics, greetingRepo)
+	// Wire the shared service — the same constructor a cmd/ui or cmd/worker would use.
+	greetingSvc := service.NewGreetingService(businessMetrics, transactor, greetingRepo, outboxRepo)
 
-	// Wire driving adapter (HTTP server) — inject use case interfaces
-	router := httpsAdapter.NewServer(serviceName, idTokenVerifier, sqliteDB, createGreeting, getGreeting, listGreetings)
+	// Wire the HTTP router for this binary.
+	router := newRouter(serviceName, idTokenVerifier, sqliteDB, greetingSvc)
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,
 		Handler: router,
 	}
-
-	// Start outbox relay
-	relayCtx, relayCancel := context.WithCancel(context.Background())
-	relay := outboxAdapter.NewRelay(outboxRepo, func(ctx context.Context, aggType, aggID, evtType string, payload []byte) error {
-		slog.Info("outbox dispatch",
-			"aggregate_type", aggType,
-			"aggregate_id", aggID,
-			"event_type", evtType,
-			"payload", string(payload),
-		)
-		return nil
-	}, 5*time.Second, 50)
-	go relay.Start(relayCtx)
 
 	// Listen for SIGINT/SIGTERM in the background
 	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -115,9 +98,6 @@ func main() {
 	<-sigCtx.Done()
 	stop()
 	slog.Info("Shutting down gracefully...")
-
-	// Stop relay first so it stops issuing queries
-	relayCancel()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

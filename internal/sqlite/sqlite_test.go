@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AlbertoDePena/go-api-poc/internal/adapter/sqlite"
-	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/sqlite"
 )
 
 // newTestDB opens a fresh SQLite database in a temp directory.
@@ -262,17 +262,17 @@ func TestOutboxRepository_MarkProcessed(t *testing.T) {
 	}
 }
 
-// ---------- UnitOfWork ----------
+// ---------- Transactor ----------
 
-func TestUnitOfWork_CommitsOnSuccess(t *testing.T) {
+func TestTransactor_CommitsOnSuccess(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewUnitOfWork(db)
+	uow := sqlite.NewTransactor(db)
 	greetingRepo := sqlite.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	g := domain.NewGreeting("g-1", "Alice")
 
-	err := uow.Do(ctx, func(ctx context.Context) error {
+	err := uow.WithinTx(ctx, func(ctx context.Context) error {
 		return greetingRepo.Save(ctx, g)
 	})
 	if err != nil {
@@ -286,15 +286,15 @@ func TestUnitOfWork_CommitsOnSuccess(t *testing.T) {
 	assertGreetingEqual(t, g, got)
 }
 
-func TestUnitOfWork_RollsBackOnError(t *testing.T) {
+func TestTransactor_RollsBackOnError(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewUnitOfWork(db)
+	uow := sqlite.NewTransactor(db)
 	greetingRepo := sqlite.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	deliberate := errors.New("deliberate error")
 
-	err := uow.Do(ctx, func(ctx context.Context) error {
+	err := uow.WithinTx(ctx, func(ctx context.Context) error {
 		g := domain.NewGreeting("g-1", "Alice")
 		if err := greetingRepo.Save(ctx, g); err != nil {
 			return err
@@ -311,9 +311,9 @@ func TestUnitOfWork_RollsBackOnError(t *testing.T) {
 	}
 }
 
-func TestUnitOfWork_RollsBackOnPanic(t *testing.T) {
+func TestTransactor_RollsBackOnPanic(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewUnitOfWork(db)
+	uow := sqlite.NewTransactor(db)
 	greetingRepo := sqlite.NewGreetingRepository(db)
 	ctx := context.Background()
 
@@ -333,7 +333,7 @@ func TestUnitOfWork_RollsBackOnPanic(t *testing.T) {
 		}
 	}()
 
-	_ = uow.Do(ctx, func(ctx context.Context) error {
+	_ = uow.WithinTx(ctx, func(ctx context.Context) error {
 		g := domain.NewGreeting("g-1", "Alice")
 		if err := greetingRepo.Save(ctx, g); err != nil {
 			return err
@@ -342,19 +342,19 @@ func TestUnitOfWork_RollsBackOnPanic(t *testing.T) {
 	})
 }
 
-func TestUnitOfWork_NestedDoesNotDeadlock(t *testing.T) {
+func TestTransactor_NestedDoesNotDeadlock(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewUnitOfWork(db)
+	uow := sqlite.NewTransactor(db)
 	greetingRepo := sqlite.NewGreetingRepository(db)
 	ctx := context.Background()
 
-	err := uow.Do(ctx, func(ctx context.Context) error {
+	err := uow.WithinTx(ctx, func(ctx context.Context) error {
 		g := domain.NewGreeting("g-1", "Alice")
 		if err := greetingRepo.Save(ctx, g); err != nil {
 			return err
 		}
-		// Nested Do should reuse the existing tx, not deadlock
-		return uow.Do(ctx, func(ctx context.Context) error {
+		// Nested WithinTx should reuse the existing tx, not deadlock
+		return uow.WithinTx(ctx, func(ctx context.Context) error {
 			g2 := domain.NewGreeting("g-2", "Bob")
 			return greetingRepo.Save(ctx, g2)
 		})
@@ -370,11 +370,11 @@ func TestUnitOfWork_NestedDoesNotDeadlock(t *testing.T) {
 	}
 }
 
-// ---------- UnitOfWork + Multiple Repositories (Integration) ----------
+// ---------- Transactor + Multiple Repositories (Integration) ----------
 
-func TestUnitOfWork_AtomicCommit_GreetingAndOutbox(t *testing.T) {
+func TestTransactor_AtomicCommit_GreetingAndOutbox(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewUnitOfWork(db)
+	uow := sqlite.NewTransactor(db)
 	greetingRepo := sqlite.NewGreetingRepository(db)
 	outboxRepo := sqlite.NewOutboxRepository(db)
 	ctx := context.Background()
@@ -382,7 +382,7 @@ func TestUnitOfWork_AtomicCommit_GreetingAndOutbox(t *testing.T) {
 	g := domain.NewGreeting("g-1", "Alice")
 	msg := domain.NewOutboxMessage("m-1", "Greeting", "g-1", "GreetingCreated", []byte(`{"name":"Alice"}`))
 
-	err := uow.Do(ctx, func(ctx context.Context) error {
+	err := uow.WithinTx(ctx, func(ctx context.Context) error {
 		if err := greetingRepo.Save(ctx, g); err != nil {
 			return err
 		}
@@ -408,16 +408,16 @@ func TestUnitOfWork_AtomicCommit_GreetingAndOutbox(t *testing.T) {
 	}
 }
 
-func TestUnitOfWork_AtomicRollback_GreetingAndOutbox(t *testing.T) {
+func TestTransactor_AtomicRollback_GreetingAndOutbox(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewUnitOfWork(db)
+	uow := sqlite.NewTransactor(db)
 	greetingRepo := sqlite.NewGreetingRepository(db)
 	outboxRepo := sqlite.NewOutboxRepository(db)
 	ctx := context.Background()
 
 	deliberate := errors.New("deliberate error")
 
-	err := uow.Do(ctx, func(ctx context.Context) error {
+	err := uow.WithinTx(ctx, func(ctx context.Context) error {
 		g := domain.NewGreeting("g-1", "Alice")
 		if err := greetingRepo.Save(ctx, g); err != nil {
 			return err

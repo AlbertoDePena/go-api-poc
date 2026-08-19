@@ -1,14 +1,19 @@
 SWAG := $(shell go env GOPATH)/bin/swag
 
-.PHONY: build run swagger clean test load-test aspire aspire-stop vet lint fmt fmt-check
+.PHONY: build run-api run-relay swagger clean test load-test aspire aspire-stop vet lint fmt fmt-check
 
-## build: Build the API binary
+## build: Build all binaries
 build: swagger
 	go build -o bin/api ./cmd/api
+	go build -o bin/outbox-relay ./cmd/outbox-relay
 
-## run: Generate swagger docs and run the API server
-run: swagger
+## run-api: Generate swagger docs and run the API server
+run-api: swagger
 	go run ./cmd/api
+
+## run-relay: Run the outbox relay (separate binary; run alongside the API)
+run-relay:
+	go run ./cmd/outbox-relay
 
 ## swagger: Generate Swagger documentation
 swagger:
@@ -16,7 +21,7 @@ swagger:
 
 ## vet: run go vet
 vet:
-	$(GO) vet ./...
+	go vet ./...
 
 ## lint: go vet + gofmt check
 lint: vet fmt-check

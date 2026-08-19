@@ -1,10 +1,10 @@
-package dto
+package handler
 
 import (
 	"time"
 
-	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
-	"github.com/AlbertoDePena/go-api-poc/internal/core/usecase"
+	"github.com/AlbertoDePena/go-api-poc/internal/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/service"
 )
 
 // CreateGreetingRequest is the HTTP request body for creating a greeting.
@@ -12,9 +12,9 @@ type CreateGreetingRequest struct {
 	Name string `json:"name" example:"World"`
 }
 
-// ToParams translates the HTTP DTO into use case params.
-func (r CreateGreetingRequest) ToParams() usecase.CreateGreetingParams {
-	return usecase.CreateGreetingParams{
+// ToParams translates the HTTP request into service params.
+func (r CreateGreetingRequest) ToParams() service.CreateGreetingParams {
+	return service.CreateGreetingParams{
 		Name: r.Name,
 	}
 }
@@ -27,7 +27,7 @@ type GreetingResponse struct {
 	CreatedAt time.Time `json:"created_at" example:"2026-06-04T12:00:00Z"`
 }
 
-// GreetingFromDomain translates a domain entity into an HTTP response DTO.
+// GreetingFromDomain translates a domain entity into an HTTP response.
 func GreetingFromDomain(g *domain.Greeting) GreetingResponse {
 	return GreetingResponse{
 		ID:        g.ID,

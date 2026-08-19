@@ -1,18 +1,18 @@
 basePath: /
 definitions:
-  dto.CreateGreetingRequest:
+  handler.CreateGreetingRequest:
     properties:
       name:
         example: World
         type: string
     type: object
-  dto.ErrorResponse:
+  handler.ErrorResponse:
     properties:
       error:
         example: greeting not found
         type: string
     type: object
-  dto.GreetingResponse:
+  handler.GreetingResponse:
     properties:
       created_at:
         example: "2026-06-04T12:00:00Z"
@@ -44,12 +44,12 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/dto.GreetingResponse'
+              $ref: '#/definitions/handler.GreetingResponse'
             type: array
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: List all greetings
       tags:
       - Greetings
@@ -63,26 +63,26 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/dto.CreateGreetingRequest'
+          $ref: '#/definitions/handler.CreateGreetingRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.GreetingResponse'
+            $ref: '#/definitions/handler.GreetingResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: Create a greeting
       tags:
       - Greetings
@@ -101,19 +101,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.GreetingResponse'
+            $ref: '#/definitions/handler.GreetingResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: Get a greeting by ID
       tags:
       - Greetings

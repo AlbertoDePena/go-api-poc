@@ -3,12 +3,12 @@ package repository
 import (
 	"context"
 
-	"github.com/AlbertoDePena/go-api-poc/internal/core/domain"
+	"github.com/AlbertoDePena/go-api-poc/internal/domain"
 )
 
 // OutboxRepository is a driven port for outbox message persistence.
 type OutboxRepository interface {
-	// Save persists a new outbox message. When called inside a UnitOfWork,
+	// Save persists a new outbox message. When called inside a Transactor,
 	// it participates in the same transaction.
 	Save(ctx context.Context, message *domain.OutboxMessage) error
 

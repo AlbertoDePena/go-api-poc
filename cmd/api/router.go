@@ -1,39 +1,34 @@
-package http
+package main
 
 import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/AlbertoDePena/go-api-poc/internal/adapter/http/handler"
-	customMiddleware "github.com/AlbertoDePena/go-api-poc/internal/adapter/http/middleware"
-	"github.com/AlbertoDePena/go-api-poc/internal/core/usecase"
+	"github.com/AlbertoDePena/go-api-poc/cmd/api/handler"
+	"github.com/AlbertoDePena/go-api-poc/internal/httpserver"
+	"github.com/AlbertoDePena/go-api-poc/internal/httpserver/middleware"
+	"github.com/AlbertoDePena/go-api-poc/internal/service"
 )
 
-func NewServer(
+// newRouter builds the API's chi router: the shared middleware from
+// httpserver.NewRouter, plus this binary's own route mounts and handlers.
+func newRouter(
 	serviceName string,
 	tokenVerifier *oidc.IDTokenVerifier,
 	pinger handler.Pinger,
-	createGreeting usecase.CreateGreetingUseCase,
-	getGreeting usecase.GetGreetingUseCase,
-	listGreetings usecase.ListGreetingsUseCase,
+	greetingSvc service.GreetingService,
 ) *chi.Mux {
-	r := chi.NewRouter()
-
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.RequestID)
-	r.Use(otelhttp.NewMiddleware(serviceName))
+	r := httpserver.NewRouter(serviceName)
 
 	healthHandler := handler.NewHealthHandler(pinger)
-	greetingHandler := handler.NewGreetingHandler(createGreeting, getGreeting, listGreetings)
+	greetingHandler := handler.NewGreetingHandler(greetingSvc)
 
 	r.Get("/health/live", healthHandler.Liveness)
 	r.Get("/health/ready", healthHandler.Readiness)
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(customMiddleware.RequireAuth(tokenVerifier))
+		r.Use(middleware.RequireAuth(tokenVerifier))
 		r.Post("/greetings", greetingHandler.CreateGreeting)
 		r.Get("/greetings", greetingHandler.ListGreetings)
 		r.Get("/greetings/{id}", greetingHandler.GetGreeting)
