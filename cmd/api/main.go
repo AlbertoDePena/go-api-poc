@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/AlbertoDePena/go-api-poc/docs"
+	_ "github.com/AlbertoDePena/go-api-poc/api/docs"
 	"github.com/AlbertoDePena/go-api-poc/internal/config"
 	internalotel "github.com/AlbertoDePena/go-api-poc/internal/otel"
 	"github.com/AlbertoDePena/go-api-poc/internal/repository/sqlite"
@@ -31,7 +31,11 @@ import (
 const serviceName = "api-poc"
 
 func main() {
-	cfg := config.LoadAPI()
+	cfg, err := config.LoadAPI()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config: %v\n", err)
+		os.Exit(1)
+	}
 	ctx := context.Background()
 
 	oidcProvider, err := oidc.NewProvider(ctx, cfg.AzureIssuer)

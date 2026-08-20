@@ -23,7 +23,11 @@ import (
 const serviceName = "outbox-relay"
 
 func main() {
-	cfg := config.LoadOutboxRelay()
+	cfg, err := config.LoadOutboxRelay()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config: %v\n", err)
+		os.Exit(1)
+	}
 	ctx := context.Background()
 
 	logger := slog.Default()
