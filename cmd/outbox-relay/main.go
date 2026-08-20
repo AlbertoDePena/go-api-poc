@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/AlbertoDePena/go-api-poc/internal/config"
-	applog "github.com/AlbertoDePena/go-api-poc/internal/log"
 	"github.com/AlbertoDePena/go-api-poc/internal/otel"
 	"github.com/AlbertoDePena/go-api-poc/internal/outbox"
 	"github.com/AlbertoDePena/go-api-poc/internal/repository/sqlite"
@@ -27,7 +26,7 @@ func main() {
 	cfg := config.LoadOutboxRelay()
 	ctx := context.Background()
 
-	logger := applog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.Default()
 
 	// --- OpenTelemetry ---
 	otelShutdown, err := otel.Setup(ctx, otel.Config{

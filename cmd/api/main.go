@@ -12,7 +12,6 @@ import (
 
 	_ "github.com/AlbertoDePena/go-api-poc/docs"
 	"github.com/AlbertoDePena/go-api-poc/internal/config"
-	applog "github.com/AlbertoDePena/go-api-poc/internal/log"
 	internalotel "github.com/AlbertoDePena/go-api-poc/internal/otel"
 	"github.com/AlbertoDePena/go-api-poc/internal/repository/sqlite"
 	"github.com/AlbertoDePena/go-api-poc/internal/service"
@@ -89,7 +88,7 @@ func main() {
 	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	logger := applog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.Default()
 
 	go func() {
 		logger.InfoContext(ctx, "Starting server", "addr", cfg.Addr)
