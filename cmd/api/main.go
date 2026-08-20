@@ -12,11 +12,14 @@ import (
 
 	_ "github.com/AlbertoDePena/go-api-poc/docs"
 	"github.com/AlbertoDePena/go-api-poc/internal/config"
-	"github.com/AlbertoDePena/go-api-poc/internal/metrics"
-	"github.com/AlbertoDePena/go-api-poc/internal/otel"
+	applog "github.com/AlbertoDePena/go-api-poc/internal/log"
+	internalotel "github.com/AlbertoDePena/go-api-poc/internal/otel"
+	"github.com/AlbertoDePena/go-api-poc/internal/repository/sqlite"
 	"github.com/AlbertoDePena/go-api-poc/internal/service"
-	"github.com/AlbertoDePena/go-api-poc/internal/sqlite"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	otelmetric "go.opentelemetry.io/otel/metric"
 )
 
 // @title           API POC
@@ -41,7 +44,7 @@ func main() {
 	idTokenVerifier := oidcProvider.Verifier(&oidc.Config{ClientID: cfg.AzureAudience})
 
 	// --- OpenTelemetry ---
-	otelShutdown, err := otel.Setup(ctx, otel.Config{
+	otelShutdown, err := internalotel.Setup(ctx, internalotel.Config{
 		ServiceName:    serviceName,
 		ServiceVersion: "1.0.0",
 		ExporterType:   cfg.OtelExporter,
@@ -52,7 +55,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	businessMetrics, err := metrics.NewMetrics()
+	// Business metrics — same OTel MeterProvider set up above.
+	businessMetrics, err := newBusinessMetrics()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialise metrics: %v\n", err)
 		os.Exit(1)
@@ -85,9 +89,11 @@ func main() {
 	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	logger := applog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 	go func() {
-		slog.Info("Starting server", "addr", cfg.Addr)
-		slog.Info("Swagger UI available", "url", "http://localhost"+cfg.Addr+"/swagger/index.html")
+		logger.InfoContext(ctx, "Starting server", "addr", cfg.Addr)
+		logger.InfoContext(ctx, "Swagger UI available", "url", "http://localhost"+cfg.Addr+"/swagger/index.html")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "failed to start server: %v\n", err)
 			os.Exit(1)
@@ -97,22 +103,76 @@ func main() {
 	// Block until signal received
 	<-sigCtx.Done()
 	stop()
-	slog.Info("Shutting down gracefully...")
+	logger.InfoContext(ctx, "Shutting down gracefully...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		slog.Error("forced shutdown", "error", err)
+		logger.ErrorContext(ctx, "forced shutdown", "error", err)
 	}
 
 	if err := sqliteDB.Close(); err != nil {
-		slog.Error("database close", "error", err)
+		logger.ErrorContext(ctx, "database close", "error", err)
 	}
 
 	if err := otelShutdown(shutdownCtx); err != nil {
-		slog.Error("otel shutdown", "error", err)
+		logger.ErrorContext(ctx, "otel shutdown", "error", err)
 	}
 
-	slog.Info("Server stopped")
+	logger.InfoContext(ctx, "Server stopped")
+}
+
+// businessMetrics bundles the OTel instruments for greeting business metrics.
+type businessMetrics struct {
+	created otelmetric.Int64Counter
+	listed  otelmetric.Int64Counter
+	viewed  otelmetric.Int64Counter
+}
+
+const meterName = "github.com/AlbertoDePena/go-api-poc/metrics"
+
+func newBusinessMetrics() (*businessMetrics, error) {
+	m := otel.Meter(meterName)
+
+	created, err := m.Int64Counter(
+		"greetings.created",
+		otelmetric.WithDescription("Total number of greetings created"),
+		otelmetric.WithUnit("{greeting}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	listed, err := m.Int64Counter(
+		"greetings.listed",
+		otelmetric.WithDescription("Total number of times greetings were listed"),
+		otelmetric.WithUnit("{request}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	viewed, err := m.Int64Counter(
+		"greetings.viewed",
+		otelmetric.WithDescription("Total number of individual greeting views"),
+		otelmetric.WithUnit("{request}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &businessMetrics{created: created, listed: listed, viewed: viewed}, nil
+}
+
+func (m *businessMetrics) GreetingCreated(ctx context.Context, success bool) {
+	m.created.Add(ctx, 1, otelmetric.WithAttributes(attribute.Bool("success", success)))
+}
+
+func (m *businessMetrics) GreetingsListed(ctx context.Context, success bool) {
+	m.listed.Add(ctx, 1, otelmetric.WithAttributes(attribute.Bool("success", success)))
+}
+
+func (m *businessMetrics) GreetingViewed(ctx context.Context, success bool) {
+	m.viewed.Add(ctx, 1, otelmetric.WithAttributes(attribute.Bool("success", success)))
 }

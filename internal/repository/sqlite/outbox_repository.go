@@ -7,13 +7,9 @@ import (
 	"time"
 
 	"github.com/AlbertoDePena/go-api-poc/internal/domain"
-	"github.com/AlbertoDePena/go-api-poc/internal/repository"
 )
 
-var _ repository.OutboxRepository = (*OutboxRepository)(nil)
-
-// OutboxRepository is a SQLite-backed implementation of the
-// repository.OutboxRepository driven port.
+// OutboxRepository is a SQLite-backed implementation of outbox message persistence.
 type OutboxRepository struct {
 	readDB  *sql.DB
 	writeDB *sql.DB

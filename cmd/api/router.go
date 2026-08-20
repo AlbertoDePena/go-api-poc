@@ -17,12 +17,12 @@ func newRouter(
 	serviceName string,
 	tokenVerifier *oidc.IDTokenVerifier,
 	pinger handler.Pinger,
-	greetingSvc service.GreetingService,
+	greetingSvc *service.GreetingService,
 ) *chi.Mux {
 	r := httpserver.NewRouter(serviceName)
 
 	healthHandler := handler.NewHealthHandler(pinger)
-	greetingHandler := handler.NewGreetingHandler(greetingSvc)
+	greetingHandler := handler.NewGreetingHandler(greetingSvc, greetingSvc)
 
 	r.Get("/health/live", healthHandler.Liveness)
 	r.Get("/health/ready", healthHandler.Readiness)

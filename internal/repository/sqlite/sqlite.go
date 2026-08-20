@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AlbertoDePena/go-api-poc/internal/sqlite/migrations"
+	"github.com/AlbertoDePena/go-api-poc/internal/repository/sqlite/migrations"
 	_ "modernc.org/sqlite"
 )
 

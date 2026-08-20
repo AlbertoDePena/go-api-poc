@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/AlbertoDePena/go-api-poc/internal/config"
+	applog "github.com/AlbertoDePena/go-api-poc/internal/log"
 	"github.com/AlbertoDePena/go-api-poc/internal/otel"
 	"github.com/AlbertoDePena/go-api-poc/internal/outbox"
-	"github.com/AlbertoDePena/go-api-poc/internal/sqlite"
+	"github.com/AlbertoDePena/go-api-poc/internal/repository/sqlite"
 )
 
 // serviceName identifies this binary in traces/metrics/logs.
@@ -25,6 +26,8 @@ const serviceName = "outbox-relay"
 func main() {
 	cfg := config.LoadOutboxRelay()
 	ctx := context.Background()
+
+	logger := applog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// --- OpenTelemetry ---
 	otelShutdown, err := otel.Setup(ctx, otel.Config{
@@ -49,7 +52,7 @@ func main() {
 	// (queue.Enqueue). For now it logs — must stay idempotent-safe because
 	// the relay guarantees at-least-once delivery.
 	relay := outbox.NewRelay(outboxRepo, func(ctx context.Context, aggType, aggID, evtType string, payload []byte) error {
-		slog.InfoContext(ctx, "outbox dispatch",
+		logger.InfoContext(ctx, "outbox dispatch",
 			"aggregate_type", aggType,
 			"aggregate_id", aggID,
 			"event_type", evtType,
@@ -66,17 +69,17 @@ func main() {
 	// Start blocks until sigCtx is cancelled.
 	relay.Start(sigCtx)
 
-	slog.Info("Shutting down gracefully...")
+	logger.InfoContext(ctx, "Shutting down gracefully...")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := sqliteDB.Close(); err != nil {
-		slog.Error("database close", "error", err)
+		logger.ErrorContext(ctx, "database close", "error", err)
 	}
 
 	if err := otelShutdown(shutdownCtx); err != nil {
-		slog.Error("otel shutdown", "error", err)
+		logger.ErrorContext(ctx, "otel shutdown", "error", err)
 	}
 
-	slog.Info("Outbox relay stopped")
+	logger.InfoContext(ctx, "Outbox relay stopped")
 }

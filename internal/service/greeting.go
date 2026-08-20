@@ -6,38 +6,50 @@ import (
 	"fmt"
 
 	"github.com/AlbertoDePena/go-api-poc/internal/domain"
-	"github.com/AlbertoDePena/go-api-poc/internal/metrics"
-	"github.com/AlbertoDePena/go-api-poc/internal/repository"
 	"github.com/google/uuid"
 )
 
+// greetingRepository is declared here, next to its only caller — not in
+// internal/repository and not in internal/domain.
+type greetingRepository interface {
+	Save(ctx context.Context, greeting *domain.Greeting) error
+	FindByID(ctx context.Context, id string) (*domain.Greeting, error)
+	FindAll(ctx context.Context) ([]*domain.Greeting, error)
+}
+
+// outboxWriter is all greetingService needs — just the atomic write side.
+type outboxWriter interface {
+	Save(ctx context.Context, message *domain.OutboxMessage) error
+}
+
+// greetingMetrics records business-level greeting metrics.
+type greetingMetrics interface {
+	GreetingCreated(ctx context.Context, success bool)
+	GreetingsListed(ctx context.Context, success bool)
+	GreetingViewed(ctx context.Context, success bool)
+}
+
 // GreetingService is the business-logic seam shared across every binary
 // (cmd/api handlers, and any future cmd/ui or cmd/worker). Handlers and
-// consumers depend on this interface, never on repository/queue directly.
-type GreetingService interface {
-	CreateGreeting(ctx context.Context, params CreateGreetingParams) (*domain.Greeting, error)
-	GetGreeting(ctx context.Context, id string) (*domain.Greeting, error)
-	ListGreetings(ctx context.Context) ([]*domain.Greeting, error)
+// consumers depend on this concrete type, never on repository/queue directly.
+type GreetingService struct {
+	metrics      greetingMetrics
+	tx           transactor
+	greetingRepo greetingRepository
+	outboxRepo   outboxWriter
 }
 
 type CreateGreetingParams struct {
 	Name string
 }
 
-type greetingService struct {
-	metrics      metrics.GreetingMetrics
-	tx           repository.Transactor
-	greetingRepo repository.GreetingRepository
-	outboxRepo   repository.OutboxRepository
-}
-
 func NewGreetingService(
-	metrics metrics.GreetingMetrics,
-	tx repository.Transactor,
-	greetingRepo repository.GreetingRepository,
-	outboxRepo repository.OutboxRepository,
-) GreetingService {
-	return &greetingService{
+	metrics greetingMetrics,
+	tx transactor,
+	greetingRepo greetingRepository,
+	outboxRepo outboxWriter,
+) *GreetingService {
+	return &GreetingService{
 		metrics:      metrics,
 		tx:           tx,
 		greetingRepo: greetingRepo,
@@ -45,7 +57,7 @@ func NewGreetingService(
 	}
 }
 
-func (s *greetingService) CreateGreeting(ctx context.Context, params CreateGreetingParams) (*domain.Greeting, error) {
+func (s *GreetingService) CreateGreeting(ctx context.Context, params CreateGreetingParams) (*domain.Greeting, error) {
 	if params.Name == "" {
 		return nil, domain.ErrNameRequired
 	}
@@ -85,7 +97,7 @@ func (s *greetingService) CreateGreeting(ctx context.Context, params CreateGreet
 	return greeting, nil
 }
 
-func (s *greetingService) GetGreeting(ctx context.Context, id string) (*domain.Greeting, error) {
+func (s *GreetingService) GetGreeting(ctx context.Context, id string) (*domain.Greeting, error) {
 	greeting, err := s.greetingRepo.FindByID(ctx, id)
 	if err != nil {
 		s.metrics.GreetingViewed(ctx, false)
@@ -96,7 +108,7 @@ func (s *greetingService) GetGreeting(ctx context.Context, id string) (*domain.G
 	return greeting, nil
 }
 
-func (s *greetingService) ListGreetings(ctx context.Context) ([]*domain.Greeting, error) {
+func (s *GreetingService) ListGreetings(ctx context.Context) ([]*domain.Greeting, error) {
 	greetings, err := s.greetingRepo.FindAll(ctx)
 	if err != nil {
 		s.metrics.GreetingsListed(ctx, false)

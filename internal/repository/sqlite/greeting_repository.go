@@ -8,13 +8,9 @@ import (
 	"time"
 
 	"github.com/AlbertoDePena/go-api-poc/internal/domain"
-	"github.com/AlbertoDePena/go-api-poc/internal/repository"
 )
 
-var _ repository.GreetingRepository = (*GreetingRepository)(nil)
-
-// GreetingRepository is a SQLite-backed implementation of the
-// repository.GreetingRepository driven port.
+// GreetingRepository is a SQLite-backed implementation of greeting persistence.
 type GreetingRepository struct {
 	readDB  *sql.DB
 	writeDB *sql.DB

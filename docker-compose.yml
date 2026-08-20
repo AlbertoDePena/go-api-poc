@@ -1,0 +1,43 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: cmd/api/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ADDR=:8080
+      - AZURE_ISSUER=${AZURE_ISSUER}
+      - AZURE_AUDIENCE=${AZURE_AUDIENCE}
+      - OTEL_EXPORTER=otlp
+      - OTEL_EXPORTER_ENDPOINT=otel-collector:4317
+      - DATABASE_PATH=/data/app.db
+    volumes:
+      - app-data:/data
+    depends_on:
+      - otel-collector
+
+  outbox-relay:
+    build:
+      context: .
+      dockerfile: cmd/outbox-relay/Dockerfile
+    environment:
+      - OTEL_EXPORTER=otlp
+      - OTEL_EXPORTER_ENDPOINT=otel-collector:4317
+      - DATABASE_PATH=/data/app.db
+    volumes:
+      - app-data:/data
+    depends_on:
+      - otel-collector
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    ports:
+      - "18888:18888"   # zpages
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+
+volumes:
+  app-data:

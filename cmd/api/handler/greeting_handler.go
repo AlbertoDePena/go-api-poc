@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,12 +12,24 @@ import (
 	"github.com/AlbertoDePena/go-api-poc/internal/service"
 )
 
-type GreetingHandler struct {
-	svc service.GreetingService
+// greetingReader is this handler's own interface — it only needs read operations.
+type greetingReader interface {
+	GetGreeting(ctx context.Context, id string) (*domain.Greeting, error)
+	ListGreetings(ctx context.Context) ([]*domain.Greeting, error)
 }
 
-func NewGreetingHandler(svc service.GreetingService) *GreetingHandler {
-	return &GreetingHandler{svc: svc}
+// greetingCreator is this handler's own interface — it only needs the create operation.
+type greetingCreator interface {
+	CreateGreeting(ctx context.Context, params service.CreateGreetingParams) (*domain.Greeting, error)
+}
+
+type GreetingHandler struct {
+	creator greetingCreator
+	reader  greetingReader
+}
+
+func NewGreetingHandler(creator greetingCreator, reader greetingReader) *GreetingHandler {
+	return &GreetingHandler{creator: creator, reader: reader}
 }
 
 // CreateGreeting handles POST /api/v1/greetings
@@ -38,7 +51,7 @@ func (h *GreetingHandler) CreateGreeting(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	greeting, err := h.svc.CreateGreeting(r.Context(), req.ToParams())
+	greeting, err := h.creator.CreateGreeting(r.Context(), req.ToParams())
 	if err != nil {
 		writeJSON(w, domainErrToHTTP(err), ErrorResponse{Error: err.Error()})
 		return
@@ -61,7 +74,7 @@ func (h *GreetingHandler) CreateGreeting(w http.ResponseWriter, r *http.Request)
 func (h *GreetingHandler) GetGreeting(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	greeting, err := h.svc.GetGreeting(r.Context(), id)
+	greeting, err := h.reader.GetGreeting(r.Context(), id)
 	if err != nil {
 		writeJSON(w, domainErrToHTTP(err), ErrorResponse{Error: err.Error()})
 		return
@@ -79,7 +92,7 @@ func (h *GreetingHandler) GetGreeting(w http.ResponseWriter, r *http.Request) {
 // @Failure      500 {object} handler.ErrorResponse
 // @Router       /api/v1/greetings [get]
 func (h *GreetingHandler) ListGreetings(w http.ResponseWriter, r *http.Request) {
-	greetings, err := h.svc.ListGreetings(r.Context())
+	greetings, err := h.reader.ListGreetings(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return

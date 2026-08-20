@@ -3,13 +3,9 @@ package sqlite
 import (
 	"context"
 	"fmt"
-
-	"github.com/AlbertoDePena/go-api-poc/internal/repository"
 )
 
-var _ repository.Transactor = (*Transactor)(nil)
-
-// Transactor implements repository.Transactor using a SQLite transaction
+// Transactor implements atomic operations using a SQLite transaction
 // on the write connection pool.
 type Transactor struct {
 	db *DB

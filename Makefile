@@ -1,6 +1,6 @@
 SWAG := $(shell go env GOPATH)/bin/swag
 
-.PHONY: build run-api run-relay swagger clean test load-test aspire aspire-stop vet lint fmt fmt-check
+.PHONY: build run-api run-relay swagger clean test load-test aspire aspire-stop vet lint fmt fmt-check docker-build docker-up docker-down
 
 ## build: Build all binaries
 build: swagger
@@ -17,7 +17,7 @@ run-relay:
 
 ## swagger: Generate Swagger documentation
 swagger:
-	$(SWAG) init -g cmd/api/main.go -o docs
+	$(SWAG) init -g cmd/api/main.go -o api/docs
 
 ## vet: run go vet
 vet:
@@ -48,11 +48,23 @@ load-test:
 
 ## clean: Remove build artifacts
 clean:
-	rm -rf bin/ docs/
+	rm -rf bin/ api/docs/
 
 ## deps: Install development dependencies
 deps:
 	go install github.com/swaggo/swag/cmd/swag@latest
+
+## docker-build: Build Docker images
+docker-build:
+	docker compose build
+
+## docker-up: Start all services via docker-compose
+docker-up:
+	docker compose up -d
+
+## docker-down: Stop all services
+docker-down:
+	docker compose down
 
 ## aspire: Run .NET Aspire Dashboard for local OTel collection
 aspire:
