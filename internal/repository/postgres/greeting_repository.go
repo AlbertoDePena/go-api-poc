@@ -1,47 +1,44 @@
-package sqlite
+package postgres
 
 import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/AlbertoDePena/go-api-poc/internal/domain"
 )
 
-// GreetingRepository is a SQLite-backed implementation of greeting persistence.
+// GreetingRepository is a PostgreSQL-backed implementation of greeting persistence.
 type GreetingRepository struct {
-	readDB  *sql.DB
-	writeDB *sql.DB
+	db *sql.DB
 }
 
 // NewGreetingRepository returns a GreetingRepository backed by this DB.
 func NewGreetingRepository(db *DB) *GreetingRepository {
-	return &GreetingRepository{readDB: db.readDB, writeDB: db.writeDB}
+	return &GreetingRepository{db: db.pool}
 }
 
 func (r *GreetingRepository) Save(ctx context.Context, greeting *domain.Greeting) error {
 	const query = `
 		INSERT INTO greetings (id, name, message, created_at)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (id) DO UPDATE SET
 			name    = excluded.name,
 			message = excluded.message`
 
-	_, err := writerFrom(ctx, r.writeDB).ExecContext(ctx, query,
+	_, err := execFrom(ctx, r.db).ExecContext(ctx, query,
 		greeting.ID,
 		greeting.Name,
 		greeting.Message,
-		greeting.CreatedAt.Format(time.RFC3339Nano),
+		greeting.CreatedAt,
 	)
 	return err
 }
 
 func (r *GreetingRepository) FindByID(ctx context.Context, id string) (*domain.Greeting, error) {
-	const query = `SELECT id, name, message, created_at FROM greetings WHERE id = ?`
+	const query = `SELECT id, name, message, created_at FROM greetings WHERE id = $1`
 
-	g, err := scanGreeting(r.readDB.QueryRowContext(ctx, query, id))
+	g, err := scanGreeting(execFrom(ctx, r.db).QueryRowContext(ctx, query, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrGreetingNotFound
 	}
@@ -54,7 +51,7 @@ func (r *GreetingRepository) FindByID(ctx context.Context, id string) (*domain.G
 func (r *GreetingRepository) FindAll(ctx context.Context) ([]*domain.Greeting, error) {
 	const query = `SELECT id, name, message, created_at FROM greetings ORDER BY created_at DESC`
 
-	rows, err := r.readDB.QueryContext(ctx, query)
+	rows, err := execFrom(ctx, r.db).QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -77,14 +74,8 @@ type scanner interface {
 
 func scanGreeting(s scanner) (*domain.Greeting, error) {
 	var g domain.Greeting
-	var createdAt string
-	if err := s.Scan(&g.ID, &g.Name, &g.Message, &createdAt); err != nil {
+	if err := s.Scan(&g.ID, &g.Name, &g.Message, &g.CreatedAt); err != nil {
 		return nil, err
 	}
-	t, err := time.Parse(time.RFC3339Nano, createdAt)
-	if err != nil {
-		return nil, fmt.Errorf("parse created_at: %w", err)
-	}
-	g.CreatedAt = t
 	return &g, nil
 }

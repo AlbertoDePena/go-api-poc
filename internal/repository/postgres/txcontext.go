@@ -1,4 +1,4 @@
-package sqlite
+package postgres
 
 import (
 	"context"
@@ -18,9 +18,10 @@ func txFromContext(ctx context.Context) *sql.Tx {
 	return tx
 }
 
-// writerFrom returns the transaction from context if present,
-// otherwise falls back to the provided *sql.DB.
-func writerFrom(ctx context.Context, fallback *sql.DB) Executor {
+// execFrom returns the transaction from context if present, otherwise falls
+// back to the pool. Reads and writes both route through it, so a query issued
+// inside WithinTx participates in the active transaction.
+func execFrom(ctx context.Context, fallback *sql.DB) Executor {
 	if tx := txFromContext(ctx); tx != nil {
 		return tx
 	}

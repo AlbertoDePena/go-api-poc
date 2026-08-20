@@ -1,37 +1,35 @@
-package sqlite
+package postgres
 
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	"github.com/AlbertoDePena/go-api-poc/internal/domain"
 )
 
-// OutboxRepository is a SQLite-backed implementation of outbox message persistence.
+// OutboxRepository is a PostgreSQL-backed implementation of outbox message persistence.
 type OutboxRepository struct {
-	readDB  *sql.DB
-	writeDB *sql.DB
+	db *sql.DB
 }
 
 // NewOutboxRepository returns an OutboxRepository backed by this DB.
 func NewOutboxRepository(db *DB) *OutboxRepository {
-	return &OutboxRepository{readDB: db.readDB, writeDB: db.writeDB}
+	return &OutboxRepository{db: db.pool}
 }
 
 func (r *OutboxRepository) Save(ctx context.Context, msg *domain.OutboxMessage) error {
 	const query = `
 		INSERT INTO outbox_messages (id, aggregate_type, aggregate_id, event_type, payload, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)`
+		VALUES ($1, $2, $3, $4, $5, $6)`
 
-	_, err := writerFrom(ctx, r.writeDB).ExecContext(ctx, query,
+	_, err := execFrom(ctx, r.db).ExecContext(ctx, query,
 		msg.ID,
 		msg.AggregateType,
 		msg.AggregateID,
 		msg.EventType,
 		msg.Payload,
-		msg.CreatedAt.Format(time.RFC3339Nano),
+		msg.CreatedAt,
 	)
 	return err
 }
@@ -42,9 +40,9 @@ func (r *OutboxRepository) FindPending(ctx context.Context, limit int) ([]*domai
 		FROM outbox_messages
 		WHERE processed_at IS NULL
 		ORDER BY created_at ASC
-		LIMIT ?`
+		LIMIT $1`
 
-	rows, err := r.readDB.QueryContext(ctx, query, limit)
+	rows, err := execFrom(ctx, r.db).QueryContext(ctx, query, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -62,15 +60,14 @@ func (r *OutboxRepository) FindPending(ctx context.Context, limit int) ([]*domai
 }
 
 func (r *OutboxRepository) MarkProcessed(ctx context.Context, id string) error {
-	const query = `UPDATE outbox_messages SET processed_at = ? WHERE id = ?`
-	_, err := r.writeDB.ExecContext(ctx, query, time.Now().Format(time.RFC3339Nano), id)
+	const query = `UPDATE outbox_messages SET processed_at = $1 WHERE id = $2`
+	_, err := execFrom(ctx, r.db).ExecContext(ctx, query, time.Now(), id)
 	return err
 }
 
 func scanOutboxMessage(s scanner) (*domain.OutboxMessage, error) {
 	var msg domain.OutboxMessage
-	var createdAt string
-	var processedAt sql.NullString
+	var processedAt sql.NullTime
 
 	if err := s.Scan(
 		&msg.ID,
@@ -78,24 +75,14 @@ func scanOutboxMessage(s scanner) (*domain.OutboxMessage, error) {
 		&msg.AggregateID,
 		&msg.EventType,
 		&msg.Payload,
-		&createdAt,
+		&msg.CreatedAt,
 		&processedAt,
 	); err != nil {
 		return nil, err
 	}
 
-	t, err := time.Parse(time.RFC3339Nano, createdAt)
-	if err != nil {
-		return nil, fmt.Errorf("parse created_at: %w", err)
-	}
-	msg.CreatedAt = t
-
 	if processedAt.Valid {
-		pt, err := time.Parse(time.RFC3339Nano, processedAt.String)
-		if err != nil {
-			return nil, fmt.Errorf("parse processed_at: %w", err)
-		}
-		msg.ProcessedAt = &pt
+		msg.ProcessedAt = &processedAt.Time
 	}
 
 	return &msg, nil

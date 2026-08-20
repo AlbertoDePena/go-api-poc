@@ -1,40 +1,63 @@
-package sqlite_test
+package postgres_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+
 	"github.com/AlbertoDePena/go-api-poc/internal/domain"
-	"github.com/AlbertoDePena/go-api-poc/internal/repository/sqlite"
+	"github.com/AlbertoDePena/go-api-poc/internal/repository/postgres"
 )
 
-// newTestDB opens a fresh SQLite database in a temp directory.
-// Migrations run automatically via sqlite.Open.
-func newTestDB(t *testing.T) *sqlite.DB {
+// newTestDB opens the PostgreSQL database named by TEST_DATABASE_URL and
+// truncates the tables so each test starts from a clean slate. The whole
+// suite is skipped when TEST_DATABASE_URL is unset, so `go test ./...` stays
+// green in CI without a running database — these are integration tests.
+func newTestDB(t *testing.T) *postgres.DB {
 	t.Helper()
 
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "test.db")
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping postgres integration tests")
+	}
 
-	db, err := sqlite.Open(dbPath)
+	db, err := postgres.Open(context.Background(), url)
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
 
+	truncate(t, url)
 	return db
+}
+
+// truncate clears the tables via a throwaway connection so tests do not see
+// rows left behind by earlier tests sharing the same database.
+func truncate(t *testing.T, url string) {
+	t.Helper()
+
+	raw, err := sql.Open("pgx", url)
+	if err != nil {
+		t.Fatalf("open truncate conn: %v", err)
+	}
+	defer raw.Close()
+
+	if _, err := raw.Exec("TRUNCATE greetings, outbox_messages"); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
 }
 
 // ---------- GreetingRepository ----------
 
 func TestGreetingRepository_SaveAndFindByID(t *testing.T) {
 	db := newTestDB(t)
-	repo := sqlite.NewGreetingRepository(db)
+	repo := postgres.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	g := domain.NewGreeting("g-1", "Alice")
@@ -53,7 +76,7 @@ func TestGreetingRepository_SaveAndFindByID(t *testing.T) {
 
 func TestGreetingRepository_FindByID_NotFound(t *testing.T) {
 	db := newTestDB(t)
-	repo := sqlite.NewGreetingRepository(db)
+	repo := postgres.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	_, err := repo.FindByID(ctx, "does-not-exist")
@@ -64,7 +87,7 @@ func TestGreetingRepository_FindByID_NotFound(t *testing.T) {
 
 func TestGreetingRepository_SaveUpsert(t *testing.T) {
 	db := newTestDB(t)
-	repo := sqlite.NewGreetingRepository(db)
+	repo := postgres.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	g := domain.NewGreeting("g-1", "Alice")
@@ -93,7 +116,7 @@ func TestGreetingRepository_SaveUpsert(t *testing.T) {
 
 func TestGreetingRepository_FindAll(t *testing.T) {
 	db := newTestDB(t)
-	repo := sqlite.NewGreetingRepository(db)
+	repo := postgres.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	now := time.Now()
@@ -127,7 +150,7 @@ func TestGreetingRepository_FindAll(t *testing.T) {
 
 func TestGreetingRepository_FindAll_Empty(t *testing.T) {
 	db := newTestDB(t)
-	repo := sqlite.NewGreetingRepository(db)
+	repo := postgres.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	got, err := repo.FindAll(ctx)
@@ -144,7 +167,7 @@ func TestGreetingRepository_FindAll_Empty(t *testing.T) {
 
 func TestOutboxRepository_SaveAndFindPending(t *testing.T) {
 	db := newTestDB(t)
-	repo := sqlite.NewOutboxRepository(db)
+	repo := postgres.NewOutboxRepository(db)
 	ctx := context.Background()
 
 	msg := domain.NewOutboxMessage("m-1", "Greeting", "g-1", "GreetingCreated", []byte(`{"name":"Alice"}`))
@@ -182,7 +205,7 @@ func TestOutboxRepository_SaveAndFindPending(t *testing.T) {
 
 func TestOutboxRepository_FindPending_RespectsLimit(t *testing.T) {
 	db := newTestDB(t)
-	repo := sqlite.NewOutboxRepository(db)
+	repo := postgres.NewOutboxRepository(db)
 	ctx := context.Background()
 
 	for i := range 5 {
@@ -208,7 +231,7 @@ func TestOutboxRepository_FindPending_RespectsLimit(t *testing.T) {
 
 func TestOutboxRepository_FindPending_OrderByCreatedAtASC(t *testing.T) {
 	db := newTestDB(t)
-	repo := sqlite.NewOutboxRepository(db)
+	repo := postgres.NewOutboxRepository(db)
 	ctx := context.Background()
 
 	now := time.Now()
@@ -240,7 +263,7 @@ func TestOutboxRepository_FindPending_OrderByCreatedAtASC(t *testing.T) {
 
 func TestOutboxRepository_MarkProcessed(t *testing.T) {
 	db := newTestDB(t)
-	repo := sqlite.NewOutboxRepository(db)
+	repo := postgres.NewOutboxRepository(db)
 	ctx := context.Background()
 
 	msg := domain.NewOutboxMessage("m-1", "Greeting", "g-1", "GreetingCreated", []byte(`{}`))
@@ -266,8 +289,8 @@ func TestOutboxRepository_MarkProcessed(t *testing.T) {
 
 func TestTransactor_CommitsOnSuccess(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewTransactor(db)
-	greetingRepo := sqlite.NewGreetingRepository(db)
+	uow := postgres.NewTransactor(db)
+	greetingRepo := postgres.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	g := domain.NewGreeting("g-1", "Alice")
@@ -276,7 +299,7 @@ func TestTransactor_CommitsOnSuccess(t *testing.T) {
 		return greetingRepo.Save(ctx, g)
 	})
 	if err != nil {
-		t.Fatalf("Do: %v", err)
+		t.Fatalf("WithinTx: %v", err)
 	}
 
 	got, err := greetingRepo.FindByID(ctx, "g-1")
@@ -288,8 +311,8 @@ func TestTransactor_CommitsOnSuccess(t *testing.T) {
 
 func TestTransactor_RollsBackOnError(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewTransactor(db)
-	greetingRepo := sqlite.NewGreetingRepository(db)
+	uow := postgres.NewTransactor(db)
+	greetingRepo := postgres.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	deliberate := errors.New("deliberate error")
@@ -302,7 +325,7 @@ func TestTransactor_RollsBackOnError(t *testing.T) {
 		return deliberate
 	})
 	if !errors.Is(err, deliberate) {
-		t.Fatalf("Do error = %v, want deliberate error", err)
+		t.Fatalf("WithinTx error = %v, want deliberate error", err)
 	}
 
 	_, err = greetingRepo.FindByID(ctx, "g-1")
@@ -313,8 +336,8 @@ func TestTransactor_RollsBackOnError(t *testing.T) {
 
 func TestTransactor_RollsBackOnPanic(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewTransactor(db)
-	greetingRepo := sqlite.NewGreetingRepository(db)
+	uow := postgres.NewTransactor(db)
+	greetingRepo := postgres.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	defer func() {
@@ -342,10 +365,10 @@ func TestTransactor_RollsBackOnPanic(t *testing.T) {
 	})
 }
 
-func TestTransactor_NestedDoesNotDeadlock(t *testing.T) {
+func TestTransactor_NestedReusesTx(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewTransactor(db)
-	greetingRepo := sqlite.NewGreetingRepository(db)
+	uow := postgres.NewTransactor(db)
+	greetingRepo := postgres.NewGreetingRepository(db)
 	ctx := context.Background()
 
 	err := uow.WithinTx(ctx, func(ctx context.Context) error {
@@ -353,19 +376,19 @@ func TestTransactor_NestedDoesNotDeadlock(t *testing.T) {
 		if err := greetingRepo.Save(ctx, g); err != nil {
 			return err
 		}
-		// Nested WithinTx should reuse the existing tx, not deadlock
+		// Nested WithinTx should reuse the existing tx
 		return uow.WithinTx(ctx, func(ctx context.Context) error {
 			g2 := domain.NewGreeting("g-2", "Bob")
 			return greetingRepo.Save(ctx, g2)
 		})
 	})
 	if err != nil {
-		t.Fatalf("nested Do: %v", err)
+		t.Fatalf("nested WithinTx: %v", err)
 	}
 
 	for _, id := range []string{"g-1", "g-2"} {
 		if _, err := greetingRepo.FindByID(ctx, id); err != nil {
-			t.Errorf("FindByID(%s) after nested Do: %v", id, err)
+			t.Errorf("FindByID(%s) after nested WithinTx: %v", id, err)
 		}
 	}
 }
@@ -374,9 +397,9 @@ func TestTransactor_NestedDoesNotDeadlock(t *testing.T) {
 
 func TestTransactor_AtomicCommit_GreetingAndOutbox(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewTransactor(db)
-	greetingRepo := sqlite.NewGreetingRepository(db)
-	outboxRepo := sqlite.NewOutboxRepository(db)
+	uow := postgres.NewTransactor(db)
+	greetingRepo := postgres.NewGreetingRepository(db)
+	outboxRepo := postgres.NewOutboxRepository(db)
 	ctx := context.Background()
 
 	g := domain.NewGreeting("g-1", "Alice")
@@ -389,10 +412,9 @@ func TestTransactor_AtomicCommit_GreetingAndOutbox(t *testing.T) {
 		return outboxRepo.Save(ctx, msg)
 	})
 	if err != nil {
-		t.Fatalf("Do: %v", err)
+		t.Fatalf("WithinTx: %v", err)
 	}
 
-	// Both should be persisted
 	got, err := greetingRepo.FindByID(ctx, "g-1")
 	if err != nil {
 		t.Fatalf("FindByID: %v", err)
@@ -410,9 +432,9 @@ func TestTransactor_AtomicCommit_GreetingAndOutbox(t *testing.T) {
 
 func TestTransactor_AtomicRollback_GreetingAndOutbox(t *testing.T) {
 	db := newTestDB(t)
-	uow := sqlite.NewTransactor(db)
-	greetingRepo := sqlite.NewGreetingRepository(db)
-	outboxRepo := sqlite.NewOutboxRepository(db)
+	uow := postgres.NewTransactor(db)
+	greetingRepo := postgres.NewGreetingRepository(db)
+	outboxRepo := postgres.NewOutboxRepository(db)
 	ctx := context.Background()
 
 	deliberate := errors.New("deliberate error")
@@ -429,10 +451,9 @@ func TestTransactor_AtomicRollback_GreetingAndOutbox(t *testing.T) {
 		return deliberate
 	})
 	if !errors.Is(err, deliberate) {
-		t.Fatalf("Do error = %v, want deliberate error", err)
+		t.Fatalf("WithinTx error = %v, want deliberate error", err)
 	}
 
-	// Both should be rolled back
 	_, err = greetingRepo.FindByID(ctx, "g-1")
 	if !errors.Is(err, domain.ErrGreetingNotFound) {
 		t.Fatalf("expected ErrGreetingNotFound after rollback, got %v", err)
@@ -458,10 +479,13 @@ func TestDB_Ping(t *testing.T) {
 	}
 }
 
-func TestDB_Open_InvalidPath(t *testing.T) {
-	_, err := sqlite.Open(filepath.Join(os.DevNull, "impossible", "path.db"))
+func TestDB_Open_InvalidURL(t *testing.T) {
+	if os.Getenv("TEST_DATABASE_URL") == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping postgres integration tests")
+	}
+	_, err := postgres.Open(context.Background(), "postgres://nobody:nobody@127.0.0.1:1/nonexistent?sslmode=disable&connect_timeout=1")
 	if err == nil {
-		t.Fatal("expected error for invalid path")
+		t.Fatal("expected error for unreachable database")
 	}
 }
 
@@ -478,7 +502,9 @@ func assertGreetingEqual(t *testing.T, want, got *domain.Greeting) {
 	if got.Message != want.Message {
 		t.Errorf("Message = %q, want %q", got.Message, want.Message)
 	}
-	if !got.CreatedAt.Equal(want.CreatedAt) {
+	// Postgres TIMESTAMPTZ stores microsecond precision; truncate both sides
+	// before comparing so the round-trip does not fail on dropped nanoseconds.
+	if !got.CreatedAt.Truncate(time.Microsecond).Equal(want.CreatedAt.Truncate(time.Microsecond)) {
 		t.Errorf("CreatedAt = %v, want %v", got.CreatedAt, want.CreatedAt)
 	}
 }

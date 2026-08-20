@@ -13,7 +13,7 @@ import (
 	_ "github.com/AlbertoDePena/go-api-poc/api/docs"
 	"github.com/AlbertoDePena/go-api-poc/internal/config"
 	internalotel "github.com/AlbertoDePena/go-api-poc/internal/otel"
-	"github.com/AlbertoDePena/go-api-poc/internal/repository/sqlite"
+	"github.com/AlbertoDePena/go-api-poc/internal/repository/postgres"
 	"github.com/AlbertoDePena/go-api-poc/internal/service"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"go.opentelemetry.io/otel"
@@ -66,22 +66,22 @@ func main() {
 	}
 
 	// Wire driven adapters
-	sqliteDB, err := sqlite.Open(cfg.DatabasePath)
+	db, err := postgres.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		// Write fatal startup errors straight to stderr so
 		// they are guaranteed to reach the console.
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
 	}
-	greetingRepo := sqlite.NewGreetingRepository(sqliteDB)
-	outboxRepo := sqlite.NewOutboxRepository(sqliteDB)
-	transactor := sqlite.NewTransactor(sqliteDB)
+	greetingRepo := postgres.NewGreetingRepository(db)
+	outboxRepo := postgres.NewOutboxRepository(db)
+	transactor := postgres.NewTransactor(db)
 
 	// Wire the shared service — the same constructor a cmd/ui or cmd/worker would use.
 	greetingSvc := service.NewGreetingService(businessMetrics, transactor, greetingRepo, outboxRepo)
 
 	// Wire the HTTP router for this binary.
-	router := newRouter(serviceName, idTokenVerifier, sqliteDB, greetingSvc)
+	router := newRouter(serviceName, idTokenVerifier, db, greetingSvc)
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,
@@ -115,7 +115,7 @@ func main() {
 		logger.ErrorContext(ctx, "forced shutdown", "error", err)
 	}
 
-	if err := sqliteDB.Close(); err != nil {
+	if err := db.Close(); err != nil {
 		logger.ErrorContext(ctx, "database close", "error", err)
 	}
 

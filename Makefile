@@ -1,6 +1,6 @@
 SWAG := $(shell go env GOPATH)/bin/swag
 
-.PHONY: build run-api run-relay swagger clean test load-test aspire aspire-stop vet lint fmt fmt-check docker-build docker-up docker-down
+.PHONY: build run-api run-relay swagger clean test load-test aspire aspire-stop postgres postgres-stop vet lint fmt fmt-check docker-build docker-up docker-down
 
 ## build: Build all binaries
 build: swagger
@@ -78,6 +78,20 @@ aspire:
 ## aspire-stop: Stop the Aspire Dashboard
 aspire-stop:
 	docker stop aspire-dashboard
+
+## postgres: Run a local PostgreSQL for `make run-api` / `make run-relay`
+postgres:
+	docker run --rm -d \
+		--name api-poc-postgres \
+		-p 5432:5432 \
+		-e POSTGRES_USER=postgres \
+		-e POSTGRES_PASSWORD=postgres \
+		-e POSTGRES_DB=apipoc \
+		postgres:17-alpine
+
+## postgres-stop: Stop the local PostgreSQL container
+postgres-stop:
+	docker stop api-poc-postgres
 
 ## help: Show this help
 help:

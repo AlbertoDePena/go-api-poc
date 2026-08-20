@@ -1,12 +1,11 @@
-package sqlite
+package postgres
 
 import (
 	"context"
 	"fmt"
 )
 
-// Transactor implements atomic operations using a SQLite transaction
-// on the write connection pool.
+// Transactor implements atomic operations using a PostgreSQL transaction.
 type Transactor struct {
 	db *DB
 }
@@ -16,13 +15,13 @@ func NewTransactor(db *DB) *Transactor {
 }
 
 func (t *Transactor) WithinTx(ctx context.Context, fn func(ctx context.Context) error) (err error) {
-	// If already inside a transaction, just execute without nesting.
-	// Nesting would deadlock on the single-writer connection pool.
+	// If already inside a transaction, reuse it rather than opening a nested
+	// one (Postgres has no true nested transactions without savepoints).
 	if txFromContext(ctx) != nil {
 		return fn(ctx)
 	}
 
-	tx, err := t.db.writeDB.BeginTx(ctx, nil)
+	tx, err := t.db.pool.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}

@@ -12,7 +12,7 @@ import (
 	"github.com/AlbertoDePena/go-api-poc/internal/config"
 	"github.com/AlbertoDePena/go-api-poc/internal/otel"
 	"github.com/AlbertoDePena/go-api-poc/internal/outbox"
-	"github.com/AlbertoDePena/go-api-poc/internal/repository/sqlite"
+	"github.com/AlbertoDePena/go-api-poc/internal/repository/postgres"
 )
 
 // serviceName identifies this binary in traces/metrics/logs.
@@ -44,12 +44,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	sqliteDB, err := sqlite.Open(cfg.DatabasePath)
+	db, err := postgres.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to open database: %v\n", err)
 		os.Exit(1)
 	}
-	outboxRepo := sqlite.NewOutboxRepository(sqliteDB)
+	outboxRepo := postgres.NewOutboxRepository(db)
 
 	// The dispatch handler is the plug-in point for a real queue
 	// (queue.Enqueue). For now it logs — must stay idempotent-safe because
@@ -76,7 +76,7 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := sqliteDB.Close(); err != nil {
+	if err := db.Close(); err != nil {
 		logger.ErrorContext(ctx, "database close", "error", err)
 	}
 

@@ -13,7 +13,7 @@ type API struct {
 	AzureAudience        string
 	OtelExporter         string
 	OtelExporterEndpoint string
-	DatabasePath         string
+	DatabaseURL          string
 }
 
 // OutboxRelay holds configuration for the cmd/outbox-relay binary. It has no
@@ -21,7 +21,7 @@ type API struct {
 type OutboxRelay struct {
 	OtelExporter         string
 	OtelExporterEndpoint string
-	DatabasePath         string
+	DatabaseURL          string
 	PollInterval         time.Duration
 	BatchSize            int
 }
@@ -38,7 +38,7 @@ func LoadAPI() (API, error) {
 		AzureAudience:        mustEnv("AZURE_AUDIENCE", &missing),
 		OtelExporter:         getEnv("OTEL_EXPORTER", "stdout"),
 		OtelExporterEndpoint: getEnv("OTEL_EXPORTER_ENDPOINT", "localhost:18889"),
-		DatabasePath:         mustEnv("DATABASE_PATH", &missing),
+		DatabaseURL:          mustEnv("DATABASE_URL", &missing),
 	}
 	if len(missing) > 0 {
 		return API{}, fmt.Errorf("missing required env vars: %s", strings.Join(missing, ", "))
@@ -54,7 +54,7 @@ func LoadOutboxRelay() (OutboxRelay, error) {
 	c := OutboxRelay{
 		OtelExporter:         getEnv("OTEL_EXPORTER", "stdout"),
 		OtelExporterEndpoint: getEnv("OTEL_EXPORTER_ENDPOINT", "localhost:18889"),
-		DatabasePath:         mustEnv("DATABASE_PATH", &missing),
+		DatabaseURL:          mustEnv("DATABASE_URL", &missing),
 		PollInterval:         getEnvDuration("OUTBOX_POLL_INTERVAL", 5*time.Second),
 		BatchSize:            getEnvInt("OUTBOX_BATCH_SIZE", 50),
 	}

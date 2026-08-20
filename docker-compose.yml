@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=apipoc
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d apipoc"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build:
       context: .
@@ -9,35 +25,29 @@ services:
       - ADDR=:8080
       - AZURE_ISSUER=${AZURE_ISSUER}
       - AZURE_AUDIENCE=${AZURE_AUDIENCE}
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/apipoc?sslmode=disable
+      # Export OTLP to the .NET Aspire dashboard running on the host.
       - OTEL_EXPORTER=otlp
-      - OTEL_EXPORTER_ENDPOINT=otel-collector:4317
-      - DATABASE_PATH=/data/app.db
-    volumes:
-      - app-data:/data
+      - OTEL_EXPORTER_ENDPOINT=host.docker.internal:18889
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      - otel-collector
+      postgres:
+        condition: service_healthy
 
   outbox-relay:
     build:
       context: .
       dockerfile: cmd/outbox-relay/Dockerfile
     environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/apipoc?sslmode=disable
       - OTEL_EXPORTER=otlp
-      - OTEL_EXPORTER_ENDPOINT=otel-collector:4317
-      - DATABASE_PATH=/data/app.db
-    volumes:
-      - app-data:/data
+      - OTEL_EXPORTER_ENDPOINT=host.docker.internal:18889
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      - otel-collector
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
-    ports:
-      - "18888:18888"   # zpages
-      - "4317:4317"     # OTLP gRPC
-      - "4318:4318"     # OTLP HTTP
-    volumes:
-      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+      postgres:
+        condition: service_healthy
 
 volumes:
-  app-data:
+  pg-data:

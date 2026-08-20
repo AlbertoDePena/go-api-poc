@@ -17,13 +17,13 @@ Current binaries:
 Dependencies point in one direction only:
 
 ```
-handler (cmd/api)  ─▶  service  ─▶  <consumer-owned interfaces>  ─▶  repository/sqlite (impl)
+handler (cmd/api)  ─▶  service  ─▶  <consumer-owned interfaces>  ─▶  repository/postgres (impl)
 ```
 
 Nothing above the service layer knows a database exists. Handlers depend on their
 own small interfaces satisfied by `service.GreetingService`; the service depends on
 its own `greetingRepository`, `outboxWriter`, and `transactor` interfaces (declared
-next to their caller, not in `repository`); the SQLite adapter is the only package
+next to their caller, not in `repository`); the PostgreSQL adapter is the only package
 that imports a driver and exports concrete implementations that satisfy those
 interfaces structurally.
 
@@ -40,7 +40,7 @@ internal/
   domain/                  # core types (Greeting, OutboxMessage) — no framework deps
   service/                 # GreetingService + its consumer-owned interfaces (repo, outbox, tx)
   repository/
-    sqlite/                # SQLite implementations (greeting, outbox, Transactor) + migrations
+    postgres/              # PostgreSQL implementations (greeting, outbox, Transactor) + migrations
   outbox/                  # outbox relay poll/dispatch loop
   otel/                    # OpenTelemetry tracer/meter/logger provider setup
   httpserver/              # generic chi router + shared middleware
@@ -60,7 +60,7 @@ service; the concrete OTel-counter implementation is wired in `cmd/api/main.go`.
 - **Transactions via a consumer-owned `transactor` interface.** `WithinTx(ctx, fn)`
   runs multiple repository writes atomically without leaking a driver type above the
   interface; the interface is declared in `service`, the concrete impl lives in
-  `repository/sqlite`.
+  `repository/postgres`.
 - **Outbox pattern.** `CreateGreeting` writes the greeting row and an outbox row in the
   same transaction. `cmd/outbox-relay` polls the outbox table and dispatches events —
   delivery is **at-least-once**, so any real dispatch target must be idempotent.
@@ -84,19 +84,29 @@ Config is read from the environment only (a local `.env` file is loaded automati
 | --- | --- | --- | --- |
 | `AZURE_ISSUER` | yes | — | api |
 | `AZURE_AUDIENCE` | yes | — | api |
-| `DATABASE_PATH` | yes | — | api, outbox-relay |
+| `DATABASE_URL` | yes | — | api, outbox-relay |
 | `ADDR` | no | `:8080` | api |
 | `OTEL_EXPORTER` | no | `stdout` (`stdout` or `otlp`) | api, outbox-relay |
 | `OTEL_EXPORTER_ENDPOINT` | no | `localhost:18889` | api, outbox-relay |
+| `OUTBOX_POLL_INTERVAL` | no | `5s` | outbox-relay |
+| `OUTBOX_BATCH_SIZE` | no | `50` | outbox-relay |
+
+`DATABASE_URL` is a standard PostgreSQL DSN, e.g.
+`postgres://postgres:postgres@localhost:5432/apipoc?sslmode=disable`.
 
 ### Running locally
 
-The API and the outbox relay are **separate processes** — run both:
+The API and the outbox relay are **separate processes** that share a PostgreSQL
+database. Start Postgres first, then run both:
 
 ```sh
+make postgres     # start a local PostgreSQL container on :5432
 make run-api      # starts the HTTP API (generates Swagger docs first)
 make run-relay    # starts the outbox relay (in a second terminal)
 ```
+
+Schema migrations run automatically on startup, so no manual DB setup is needed
+beyond an empty `apipoc` database.
 
 Swagger UI is then available at http://localhost:8080/swagger/index.html.
 
@@ -146,8 +156,9 @@ make help         # list all targets
 
 ## Persistence
 
-SQLite (via `modernc.org/sqlite`, no cgo) with separate read/write connection pools, WAL
-mode, and file-based migrations embedded in `internal/repository/sqlite/migrations`.
-Migrations run automatically on startup. The SQLite adapter is a plug-in point — swapping
-in another database means providing new concrete types that satisfy the same
-consumer-owned interfaces declared in `internal/service`.
+PostgreSQL (via `github.com/jackc/pgx/v5` through the `database/sql` stdlib driver, no
+cgo) with a single connection pool. Schema migrations are `.sql` files embedded in
+`internal/repository/postgres/migrations` and applied in filename order on startup, each
+in its own transaction, tracked in a `schema_migrations` table. The PostgreSQL adapter is
+a plug-in point — swapping in another database means providing new concrete types that
+satisfy the same consumer-owned interfaces declared in `internal/service`.
