@@ -33,6 +33,20 @@ func mustEnv(key string, missing *[]string) string {
 	return v
 }
 
+// mustEnvFallback returns the value of the first set (non-empty) key in keys,
+// letting a binary prefer a dedicated var but fall back to a shared one (e.g.
+// MIGRATION_DATABASE_URL, then DATABASE_URL). If every key is empty it records
+// the first key in missing so Load* can report it alongside other missing vars.
+func mustEnvFallback(keys []string, missing *[]string) string {
+	for _, k := range keys {
+		if v := os.Getenv(k); v != "" {
+			return v
+		}
+	}
+	*missing = append(*missing, keys[0])
+	return ""
+}
+
 // getEnvDuration returns the duration parsed from key, or def when unset or
 // unparseable.
 func getEnvDuration(key string, def time.Duration) time.Duration {

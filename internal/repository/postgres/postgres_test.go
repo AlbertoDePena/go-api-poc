@@ -27,6 +27,13 @@ func newTestDB(t *testing.T) *postgres.DB {
 		t.Skip("TEST_DATABASE_URL not set; skipping postgres integration tests")
 	}
 
+	// Open no longer migrates, so bootstrap the schema explicitly. Migrate is
+	// idempotent (tracked in schema_migrations), so running it before every
+	// test is cheap once the schema is up to date.
+	if err := postgres.Migrate(context.Background(), url); err != nil {
+		t.Fatalf("migrate test db: %v", err)
+	}
+
 	db, err := postgres.Open(context.Background(), url)
 	if err != nil {
 		t.Fatalf("open test db: %v", err)

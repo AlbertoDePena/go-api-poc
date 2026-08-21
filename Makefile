@@ -1,11 +1,16 @@
 SWAG := $(shell go env GOPATH)/bin/swag
 
-.PHONY: build run-api run-relay swagger clean test load-test vet lint fmt fmt-check
+.PHONY: build run-api run-relay migrate swagger clean test load-test vet lint fmt fmt-check
 
 ## build: Build all binaries
 build: swagger
 	go build -o bin/api ./cmd/api
 	go build -o bin/outbox-relay ./cmd/outbox-relay
+	go build -o bin/migrate ./cmd/migrate
+
+## migrate: Apply schema migrations (uses MIGRATION_DATABASE_URL, else DATABASE_URL)
+migrate:
+	go run ./cmd/migrate
 
 ## run-api: Generate swagger docs and run the API server
 run-api: swagger

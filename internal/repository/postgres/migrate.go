@@ -8,9 +8,35 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/AlbertoDePena/go-api-poc/internal/repository/postgres/migrations"
 )
+
+// Migrate connects to the database at databaseURL using a dedicated,
+// short-lived connection pool, applies every pending schema migration, then
+// closes the pool. It is the entry point for the cmd/migrate binary, which is
+// run with a privileged (schema-changing) service account — distinct from the
+// least-privilege runtime account the API and outbox relay pass to Open.
+//
+// ctx governs the whole sequence; connectivity is additionally bounded by a
+// short internal timeout, while migrations run under ctx directly so a large
+// migration set is not capped by that connectivity budget.
+func Migrate(ctx context.Context, databaseURL string) error {
+	pool, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		return fmt.Errorf("open postgres: %w", err)
+	}
+	defer pool.Close()
+
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := pool.PingContext(pingCtx); err != nil {
+		return fmt.Errorf("ping postgres: %w", err)
+	}
+
+	return runMigrations(ctx, pool)
+}
 
 // runMigrations applies every embedded .sql migration that has not yet been
 // recorded in schema_migrations, in filename order, each in its own
@@ -76,7 +102,7 @@ func runMigrations(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("commit migration %s: %w", entry.Name(), err)
 		}
 
-		slog.Info("applied migration", "file", entry.Name())
+		slog.InfoContext(ctx, "applied migration", "file", entry.Name())
 	}
 
 	return nil

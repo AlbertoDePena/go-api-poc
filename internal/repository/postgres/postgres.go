@@ -18,13 +18,14 @@ type DB struct {
 }
 
 // Open connects to the PostgreSQL database at databaseURL (a standard DSN,
-// e.g. postgres://user:pass@host:5432/db?sslmode=disable), verifies
-// connectivity, and runs all pending schema migrations before returning.
+// e.g. postgres://user:pass@host:5432/db?sslmode=disable) and verifies
+// connectivity. It deliberately does NOT run schema migrations: the runtime
+// binaries (cmd/api, cmd/outbox-relay) pass a least-privilege app account that
+// has no DDL rights. Migrations are applied out-of-band by the cmd/migrate
+// binary via Migrate, which uses a separate privileged DSN.
 //
-// ctx governs the whole startup sequence, so a caller that cancels it (e.g. on
-// SIGTERM during boot) interrupts a slow connect or migration. Connectivity is
-// additionally bounded by a short internal timeout; migrations run under ctx
-// directly so a large migration set is not capped by that connectivity budget.
+// ctx governs the connect; connectivity is additionally bounded by a short
+// internal timeout.
 func Open(ctx context.Context, databaseURL string) (*DB, error) {
 	pool, err := sql.Open("pgx", databaseURL)
 	if err != nil {
@@ -41,11 +42,6 @@ func Open(ctx context.Context, databaseURL string) (*DB, error) {
 	if err := pool.PingContext(pingCtx); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
-	}
-
-	if err := runMigrations(ctx, pool); err != nil {
-		pool.Close()
-		return nil, err
 	}
 
 	return &DB{pool: pool}, nil

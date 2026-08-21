@@ -35,12 +35,14 @@ cmd/
     handler/               # HTTP handlers + edge types (Request/Response DTOs)
   outbox-relay/            # outbox relay binary (its own scaling profile)
     main.go
+  migrate/                 # one-shot schema migration binary (privileged DB account)
+    main.go
 internal/
-  config/                  # env-var config, one loader per binary (LoadAPI, LoadOutboxRelay)
+  config/                  # env-var config, one loader per binary (LoadAPI, LoadOutboxRelay, LoadMigrate)
   domain/                  # core types (Greeting, OutboxMessage) — no framework deps
   service/                 # GreetingService + its consumer-owned interfaces (repo, outbox, tx)
   repository/
-    postgres/              # PostgreSQL implementations (greeting, outbox, Transactor) + migrations
+    postgres/              # PostgreSQL implementations (greeting, outbox, Transactor); Migrate + embedded migrations
   outbox/                  # outbox relay poll/dispatch loop
   otel/                    # OpenTelemetry tracer/meter/logger provider setup
   httpserver/              # generic chi router + shared middleware
@@ -101,12 +103,16 @@ database. Start Postgres first, then run both:
 
 ```sh
 make postgres     # start a local PostgreSQL container on :5432
+make migrate      # apply schema migrations (privileged account)
 make run-api      # starts the HTTP API (generates Swagger docs first)
 make run-relay    # starts the outbox relay (in a second terminal)
 ```
 
-Schema migrations run automatically on startup, so no manual DB setup is needed
-beyond an empty `apipoc` database.
+Schema migrations are applied out-of-band by the `cmd/migrate` binary (`make
+migrate`), not on API/relay startup. `migrate` connects with `MIGRATION_DATABASE_URL`
+— a privileged, schema-changing account — while the runtime binaries connect with
+the least-privilege `DATABASE_URL` app account that has no DDL rights. Run `make
+migrate` once against an empty `gopoc` database before starting the API.
 
 Swagger UI is then available at http://localhost:8080/swagger/index.html.
 
@@ -158,7 +164,9 @@ make help         # list all targets
 
 PostgreSQL (via `github.com/jackc/pgx/v5` through the `database/sql` stdlib driver, no
 cgo) with a single connection pool. Schema migrations are `.sql` files embedded in
-`internal/repository/postgres/migrations` and applied in filename order on startup, each
-in its own transaction, tracked in a `schema_migrations` table. The PostgreSQL adapter is
+`internal/repository/postgres/migrations` and applied in filename order by the dedicated
+`cmd/migrate` binary (`postgres.Migrate`), each in its own transaction, tracked in a
+`schema_migrations` table. Migrations run out-of-band under a privileged account rather
+than on API/relay startup, so the runtime app account needs no DDL rights. The PostgreSQL adapter is
 a plug-in point — swapping in another database means providing new concrete types that
 satisfy the same consumer-owned interfaces declared in `internal/service`.

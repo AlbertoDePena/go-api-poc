@@ -26,6 +26,16 @@ type OutboxRelay struct {
 	BatchSize            int
 }
 
+// Migrate holds configuration for the cmd/migrate binary. It is a one-shot job
+// that applies schema migrations with a privileged service account, so its
+// DatabaseURL is intentionally separate from the runtime app account the API
+// and relay use.
+type Migrate struct {
+	OtelExporter         string
+	OtelExporterEndpoint string
+	DatabaseURL          string
+}
+
 // LoadAPI reads the environment configuration for the API binary. It reports
 // every missing required var at once rather than failing on the first.
 func LoadAPI() (API, error) {
@@ -60,6 +70,25 @@ func LoadOutboxRelay() (OutboxRelay, error) {
 	}
 	if len(missing) > 0 {
 		return OutboxRelay{}, fmt.Errorf("missing required env vars: %s", strings.Join(missing, ", "))
+	}
+	return c, nil
+}
+
+// LoadMigrate reads the environment configuration for the migrate binary. It
+// prefers MIGRATION_DATABASE_URL — a privileged, schema-changing DSN — and
+// falls back to DATABASE_URL for local development where a single account is
+// used for everything.
+func LoadMigrate() (Migrate, error) {
+	loadDotEnv()
+
+	var missing []string
+	c := Migrate{
+		OtelExporter:         getEnv("OTEL_EXPORTER", "stdout"),
+		OtelExporterEndpoint: getEnv("OTEL_EXPORTER_ENDPOINT", "localhost:18889"),
+		DatabaseURL:          mustEnvFallback([]string{"MIGRATION_DATABASE_URL", "DATABASE_URL"}, &missing),
+	}
+	if len(missing) > 0 {
+		return Migrate{}, fmt.Errorf("missing required env vars: %s (set MIGRATION_DATABASE_URL to a privileged DSN)", strings.Join(missing, ", "))
 	}
 	return c, nil
 }
