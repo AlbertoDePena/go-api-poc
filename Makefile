@@ -1,6 +1,6 @@
 SWAG := $(shell go env GOPATH)/bin/swag
 
-.PHONY: build run-api run-relay swagger clean test load-test aspire aspire-stop postgres postgres-stop vet lint fmt fmt-check
+.PHONY: build run-api run-relay swagger clean test load-test vet lint fmt fmt-check
 
 ## build: Build all binaries
 build: swagger
@@ -53,33 +53,6 @@ clean:
 ## deps: Install development dependencies
 deps:
 	go install github.com/swaggo/swag/cmd/swag@latest
-
-## aspire: Run .NET Aspire Dashboard for local OTel collection
-aspire:
-	docker run --rm -d \
-		--name aspire-dashboard \
-		-p 18888:18888 \
-		-p 18889:18889 \
-		-e DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true \
-		mcr.microsoft.com/dotnet/aspire-dashboard:9.2
-
-## aspire-stop: Stop the Aspire Dashboard
-aspire-stop:
-	docker stop aspire-dashboard
-
-## postgres: Run a local PostgreSQL for `make run-api` / `make run-relay`
-postgres:
-	docker run --rm -d \
-		--name api-poc-postgres \
-		-p 5432:5432 \
-		-e POSTGRES_USER=postgres \
-		-e POSTGRES_PASSWORD=postgres \
-		-e POSTGRES_DB=apipoc \
-		postgres:17-alpine
-
-## postgres-stop: Stop the local PostgreSQL container
-postgres-stop:
-	docker stop api-poc-postgres
 
 ## help: Show this help
 help:
